@@ -4,93 +4,30 @@ import _ from 'lodash';
 
 import './paged-table.css';
 
-import 'react-bootstrap-table2-paginator/dist/react-bootstrap-table2-paginator.min.css';
-import ToolkitProvider from 'react-bootstrap-table2-toolkit/dist/react-bootstrap-table2-toolkit.min';
-
 import {CancelToken} from 'axios';
 
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import BootstrapTable from 'react-bootstrap-table-next';
-import paginationFactory from 'react-bootstrap-table2-paginator';
 import Button from 'react-bootstrap/Button';
-import Pagination from 'react-bootstrap/Pagination';
 import Form from 'react-bootstrap/Form';
 import ButtonGroup from 'react-bootstrap/ButtonGroup';
 import Navbar from 'react-bootstrap/Navbar';
 import VeloValueRenderer from '../utils/value.jsx';
-import Spinner from '../utils/spinner.jsx';
 import api from '../core/api-service.jsx';
-import VeloTimestamp from "../utils/time.jsx";
-import ClientLink from '../clients/client-link.jsx';
-import HexView from '../utils/hex.jsx';
-import StackDialog from './stack.jsx';
+import ToolTip from '../widgets/tooltip.jsx';
+import Table from 'react-bootstrap/Table';
+import Dropdown from 'react-bootstrap/Dropdown';
 
 import T from '../i8n/i8n.jsx';
 import UserConfig from '../core/user.jsx';
 
 import {
-    InspectRawJson, ColumnToggleList,
-    sizePerPageRenderer, PrepareData,
-    formatColumns,
+    getFormatter,
+    InspectRawJson,
+    PrepareData,
 } from './table.jsx';
 
-
-const pageListRenderer = ({
-    pages,
-    currentPage,
-    totalRows,
-    pageSize,
-    onPageChange
-}) => {
-    // just exclude <, <<, >>, >
-    const pageWithoutIndication = pages.filter(p => typeof p.page !== 'string');
-    let totalPages = parseInt(totalRows / pageSize);
-
-    // Only allow changing to a page if there are any rows in that
-    // page.
-    if (totalPages * pageSize + 1 > totalRows) {
-        totalPages--;
-        if (totalPages<0) {
-            totalPages = 0;
-        }
-    }
-    return (
-        <Pagination>
-          <Pagination.First
-            disabled={currentPage===0}
-            onClick={()=>onPageChange(0)}/>
-          {
-              pageWithoutIndication.map((p, idx)=>(
-                <Pagination.Item
-                  key={idx}
-                  active={p.active}
-                  onClick={ () => onPageChange(p.page) } >
-                  { p.page }
-                </Pagination.Item>
-            ))
-          }
-          <Pagination.Last
-            disabled={currentPage===totalPages}
-            onClick={()=>onPageChange(totalPages)}/>
-          <Form.Control
-            as="input"
-            className="pagination-form"
-            placeholder={T("Goto Page")}
-            spellCheck="false"
-            id="goto-page"
-            value={currentPage || ""}
-            onChange={e=> {
-                let page = parseInt(e.currentTarget.value || 0);
-                if (page >= 0 && page < totalPages) {
-                    onPageChange(page);
-                }
-            }}/>
-
-        </Pagination>
-    );
-};
 
 class ColumnFilter extends Component {
     static propTypes = {
@@ -231,6 +168,261 @@ class ColumnSort extends Component {
 }
 
 
+class ColumnToggle extends Component {
+    static propTypes = {
+        columns: PropTypes.array,
+        toggles: PropTypes.object,
+        onToggle: PropTypes.func,
+    }
+
+    state = {
+        opened: false,
+    }
+
+    render() {
+        let enabled_columns = [];
+
+        let buttons = _.map(this.props.columns, (column, idx) => {
+            if (!column) {
+                return <React.Fragment key={idx}></React.Fragment>;
+            }
+            let hidden = this.props.toggles[column];
+            if (!hidden) {
+                enabled_columns.push(column);
+            }
+            return <Dropdown.Item
+                     key={ column }
+                     eventKey={column}
+                     active={!hidden}
+                   >
+                     { column }
+            </Dropdown.Item>;
+        });
+
+        return <ToolTip tooltip={T("Show/Hide Columns")}>
+                 <Dropdown as={ButtonGroup}
+                           show={this.state.open}
+                           onSelect={this.props.onToggle}
+                           onToggle={(nextOpen, metadata) => {
+                               this.setState({
+                                   open: metadata.source === "select" || nextOpen,
+                               });
+                           }}>
+                   <Dropdown.Toggle variant="default" id="dropdown-basic">
+                     <FontAwesomeIcon icon="columns"/>
+                   </Dropdown.Toggle>
+
+                   <Dropdown.Menu>
+                     { _.isEmpty(enabled_columns) ?
+                       <Dropdown.Item
+                         onClick={()=>{
+                             // Enable all columns
+                             _.each(this.props.columns, this.props.onToggle);
+                         }}>
+                         {T("Set All")}
+                       </Dropdown.Item> :
+                       <Dropdown.Item
+                         onClick={()=>{
+                             // Disable all enabled columns
+                             _.each(enabled_columns, this.props.onToggle);
+                         }}>
+                         {T("Clear All")}
+                       </Dropdown.Item> }
+                     <Dropdown.Divider />
+                     { buttons }
+                   </Dropdown.Menu>
+                 </Dropdown>
+               </ToolTip>;
+    };
+}
+
+
+export class TablePaginationControl extends React.Component {
+    static propTypes = {
+        page_size:  PropTypes.number,
+        total_size: PropTypes.number,
+        current_page: PropTypes.number,
+        start_row: PropTypes.number,
+        onRowChange: PropTypes.func,
+        onPageSizeChange: PropTypes.func,
+        direction: PropTypes.string,
+    }
+
+    state = {
+        goto_offset: "",
+        goto_error: false,
+    }
+
+    renderLabel = (start, end, total_size)=>{
+        end = end || 0;
+        start = start || 0;
+        total_size = total_size || 0;
+        let total_size_len = total_size.toString().length;
+        let total_length = total_size_len * 3 + 2;
+        let start_row_len = start.toString().length;
+        let end_len = end.toString().length;
+        let padding_len = total_length - total_size_len -
+            start_row_len - end_len - 2;
+        let padding =  [];
+        for(let i = 0; i<padding_len;i++) {
+            padding.push(<span key={i}>&nbsp;</span>);
+        };
+
+        return <>{padding}{start}-{end}/{total_size}</>;
+    }
+
+    render() {
+        let total_size = parseInt(this.props.total_size || 0);
+        if (total_size <=0) {
+            return <></>;
+        }
+
+        let total_pages = parseInt(total_size / this.props.page_size) + 1;
+        let last_page = total_pages - 1;
+        if (last_page <= 0) {
+            last_page = 0;
+        }
+
+        let pages = [];
+        let current_page = parseInt(this.props.start_row / this.props.page_size);
+        let start_page = current_page - 4;
+        let end_page = current_page + 4;
+
+        let end = this.props.start_row + this.props.page_size;
+        if(end>this.props.total_size) {
+            end=this.props.total_size;
+        }
+
+        if (start_page < 0) {
+            end_page -= start_page;
+        }
+
+        if (end_page > last_page) {
+            start_page -= end_page - last_page;
+        }
+
+        if (start_page < 0 ) {
+            start_page = 0;
+        }
+
+        if( end_page > last_page) {
+            end_page = last_page;
+        }
+
+        for(let i=start_page; i<end_page + 1; i++) {
+            let row_offset = i * this.props.page_size;
+            pages.push(
+                <Dropdown.Item as={Button}
+                               variant="default"
+                               key={i}
+                               active={i === current_page}
+                               onClick={ () => this.props.onRowChange(row_offset)} >
+                  { row_offset }
+                </Dropdown.Item>);
+        };
+
+        let page_sizes = _.map([10, 25, 30, 50, 100], x=>{
+            return <Dropdown.Item
+                     as={Button}
+                     variant="default"
+                     key={x}
+                     active={x === this.props.page_size}
+                     onClick={ () => this.props.onPageSizeChange(x) } >
+                     { x }
+                   </Dropdown.Item>;
+        });
+
+        return (
+            <>
+              <Button variant="default" className="goto-start"
+                      disabled={current_page===0}
+                      onClick={()=>this.props.onRowChange(0)}>
+                <FontAwesomeIcon icon="backward-fast"/>
+              </Button>
+
+              <Button variant="default" className="goto-prev"
+                      disabled={current_page===0}
+                      onClick={()=>this.props.onRowChange(
+                          (current_page-1) * this.props.page_size)}>
+                <FontAwesomeIcon icon="backward"/>
+              </Button>
+
+              <ToolTip tooltip={T("Goto Page")}>
+                <Dropdown as={ButtonGroup}
+                          show={this.state.open}
+                          drop={this.props.direction}
+                          onSelect={this.selectPage}
+                          onToggle={(nextOpen, metadata) => {
+                              this.setState({
+                                  open: metadata.source === "select" || nextOpen,
+                              });
+                          }}>
+                  <Dropdown.Toggle variant="default" id="dropdown-basic">
+                    {this.renderLabel(this.props.start_row,
+                                      end, this.props.total_size)}
+                  </Dropdown.Toggle>
+
+                  <Dropdown.Menu>
+                    <Dropdown.Item className="goto-input">
+                      <Form.Control
+                        as="input"
+                        className="pagination-form"
+                        placeholder={T("Goto Page")}
+                        spellCheck="false"
+                        id="goto-page"
+                        value={this.props.start_row || ""}
+                        onChange={e=> {
+                            let new_row = parseInt(e.currentTarget.value || 0);
+                            if (new_row >= 0 && new_row < this.props.total_size) {
+                                this.props.onRowChange(new_row);
+                            }
+                        }}/>
+                    </Dropdown.Item>
+                    <Dropdown.Divider />
+                    { pages }
+                  </Dropdown.Menu>
+                </Dropdown>
+              </ToolTip>
+
+              <Button variant="default" className="goto-next"
+                      disabled={this.props.current_page >= last_page}
+                      onClick={()=>this.props.onRowChange(
+                          (current_page+1) * this.props.page_size)}>
+                <FontAwesomeIcon icon="forward"/>
+              </Button>
+
+              <Button variant="default" className="goto-end"
+                      disabled={this.props.current_page === last_page}
+                      onClick={()=>this.props.onRowChange(
+                          last_page * this.props.page_size)}>
+                    <FontAwesomeIcon icon="forward-fast"/>
+              </Button>
+
+              <ToolTip tooltip={T("Page Size")}>
+                <Dropdown as={ButtonGroup}
+                          show={this.state.open_size}
+                          drop={this.props.direction}
+                          onSelect={this.selectPage}
+                          onToggle={(nextOpen, metadata) => {
+                              this.setState({
+                                  open_size: metadata.source === "select" || nextOpen,
+                              });
+                          }}>
+                  <Dropdown.Toggle variant="default" id="dropdown-basic">
+                    {this.props.page_size || 0}
+                  </Dropdown.Toggle>
+
+                  <Dropdown.Menu>
+                    { page_sizes }
+                  </Dropdown.Menu>
+                </Dropdown>
+              </ToolTip>
+            </>
+        );
+    }
+}
+
+
 class VeloPagedTable extends Component {
     static contextType = UserConfig;
 
@@ -299,6 +491,9 @@ class VeloPagedTable extends Component {
 
         // If set we report table columns here for completion.
         completion_reporter: PropTypes.func,
+
+        // If set we update the callback with the pagination state.
+        setPageState: PropTypes.func,
     }
 
     state = {
@@ -341,6 +536,13 @@ class VeloPagedTable extends Component {
     }
 
     componentDidUpdate(prevProps, prevState, snapshot) {
+        // If the table has changed we need to clear the state
+        // completely as it is a new table.
+        if (!_.isUndefined(this.props.name) &&
+            !_.isEqual(this.props.name, prevProps.name)) {
+            this.setState({toggles: {}, rows: [], columns: []});
+        }
+
         if (this.props.transform &&
             !_.isEqual(prevProps.transform, this.props.transform)) {
             this.setState({transform: this.props.transform});
@@ -363,33 +565,19 @@ class VeloPagedTable extends Component {
         return <VeloValueRenderer value={cell}/>;
     }
 
-    getColumnRenderer = (column, column_types) => {
+    getColumnRenderer = column => {
+        if(this.props.renderers && this.props.renderers[column]) {
+            return this.props.renderers[column];
+        }
+
+        let column_types = this.state.column_types;
         if (!_.isArray(column_types)) {
             return this.defaultFormatter;
         }
 
         for (let i=0; i<column_types.length; i++) {
             if (column === column_types[i].name) {
-                let type = column_types[i].type;
-                switch (type) {
-                case "base64":
-                    return (cell, row, rowIndex)=>{
-                        let decoded = cell.slice(0,1000);
-                        try {
-                            decoded = atob(cell);
-                        } catch(e) {}
-
-                        return <HexView data={decoded} height="2"/>;
-                    };
-                case "timestamp":
-                    return (cell, row, rowIndex)=><VeloTimestamp usec={cell * 1000} iso={cell}/>;
-
-                case "client_id":
-                    return (cell, row, rowIndex)=><ClientLink client_id={cell}/>;
-
-                default:
-                    return this.defaultFormatter;
-                }
+                return getFormatter(column_types[i].type, column_types[i].name);
             }
         }
         return this.defaultFormatter;
@@ -406,41 +594,41 @@ class VeloPagedTable extends Component {
 
         if (transform.filter_column) {
             result.push(
-                <Button key="1"
-                        data-tooltip={T("Transformed")}  disabled={true}
-                        data-position="right"
-                        className="btn-tooltip table-transformed"
-                        variant="outline-dark">
-                  { transform.filter_column } ( {transform.filter_regex} )
-                  <span className="transform-button">
-                    <FontAwesomeIcon icon="filter"/>
-                  </span>
-                </Button>
+                <ToolTip tooltip={T("Transformed")}>
+                  <Button key="1"
+                          disabled={true}
+                          className="table-transformed"
+                          variant="outline-dark">
+                    { transform.filter_column } ( {transform.filter_regex} )
+                    <span className="transform-button">
+                      <FontAwesomeIcon icon="filter"/>
+                    </span>
+                  </Button>
+                </ToolTip>
             );
         }
 
         if (transform.sort_column) {
             result.push(
-                <Button key="2"
-                        data-tooltip={T("Transformed")}  disabled={true}
-                        data-position="right"
-                        className="btn-tooltip"
-                  variant="outline-dark">
-                  {transform.sort_column}
-                  <span className="transform-button">
-                    {
-                        transform.sort_direction === "Ascending" ?
-                            <FontAwesomeIcon icon="sort-alpha-up"/> :
-                        <FontAwesomeIcon icon="sort-alpha-down"/>
-                    }
-                  </span>
-                </Button>
+                <ToolTip tooltip={T("Transformed")}>
+                  <Button key="2"
+                          disabled={true}
+                          variant="outline-dark">
+                    {transform.sort_column}
+                    <span className="transform-button">
+                      {
+                          transform.sort_direction === "Ascending" ?
+                              <FontAwesomeIcon icon="sort-alpha-up"/> :
+                              <FontAwesomeIcon icon="sort-alpha-down"/>
+                      }
+                    </span>
+                  </Button>
+                </ToolTip>
             );
         }
 
         return result;
     }
-
 
     fetchRows = () => {
         if (_.isEmpty(this.props.params)) {
@@ -517,16 +705,21 @@ class VeloPagedTable extends Component {
                            stack_path: stack_path || [],
                            column_types: response.data.column_types,
                            columns: columns });
+
+            if(this.props.setPageState) {
+                this.props.setPageState({
+                    total_size: parseInt(response.data.total_rows || 0),
+                    start_row: this.state.start_row,
+                    page_size: this.state.page_size,
+                    onRowChange: row_offset=>this.setState({start_row: row_offset}),
+                    onPageSizeChange: size=>this.setState({page_size: size}),
+                });
+            }
+
         }).catch(() => {
             this.setState({loading: false, rows: [], columns: [], stack_path: []});
         });
     }
-
-    customTotal = (from, to, size) => (
-        <span className="react-bootstrap-table-pagination-total">
-          {T("TablePagination", from, to, size)}
-        </span>
-    );
 
     // Update the transform specification between all the columns
     setTransform = transform=>{
@@ -555,304 +748,228 @@ class VeloPagedTable extends Component {
         return this.state.stack_path[this.state.stack_path.length-3] === name;
     }
 
-    // Format the column headers. Columns have a sort and an filter button
-    // which keep track of their own filtering and sorting states but
-    // update the primary transform.
-    headerFormatter = (column, colIndex) => {
-        return (
-            <table className="paged-table-header">
-              <tbody>
-                <tr>
-                  <td>{ column.text }</td>
-                  <td className="sort-element">
-                    <ButtonGroup>
-                      { this.isColumnStacked(column.text) &&
-                        <Button variant="default"
-                                target="_blank" rel="noopener noreferrer"
-                                data-tooltip={T("Stack")}
-                                data-position="right"
-                                onClick={()=>this.setState({
-                                    showStackDialog: column.text,
-                                })}
-                                className="btn-tooltip">
-                          <FontAwesomeIcon icon="layer-group"/>
-                          <span className="sr-only">{T("Stack")}</span>
-                        </Button>
-                      }
-                      <ColumnSort column={column.dataField}
-                                  transform={this.state.transform}
-                                  setTransform={this.setTransform}
-                      />
-
-                      <ColumnFilter column={column.dataField}
-                                    transform={this.state.transform}
-                                    setTransform={this.setTransform}
-                      />
-                    </ButtonGroup>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-        );
+    activeColumns = ()=>{
+        let res = [];
+        _.each(this.state.columns, c=>{
+            if(!this.state.toggles[c]) {
+                res.push(c);
+            }
+        });
+        return res;
     }
 
+    renderToolbar = ()=>{
+        if(this.props.no_toolbar) {
+            return <></>;
+        };
 
-    render() {
         let timezone = (this.context.traits &&
                         this.context.traits.timezone) || "UTC";
 
-        if (_.isEmpty(this.state.columns) && this.state.loading) {
-            return <>
-                     <Spinner loading={this.state.loading} />
-                     <div className="no-content">
-                        Loading....
-                     </div>
-                   </>;
-        }
-
-        if (_.isEmpty(this.state.columns)) {
-            if (this.props.refresh) {
-                let transformed = this.state.transform &&
-                    (this.state.transform.filter_column ||
-                     this.state.transform.filter_column);
-
-                return <>
-                         <div className="col-12">
-                           { !this.props.no_toolbar &&
-                              <Navbar className="toolbar">
-                                { this.props.toolbar || <></> }
-                              </Navbar> }
-                           <div className="no-content">
-                             <div>{T("No Data Available.")}</div>
-                             <Button variant="default" onClick={this.props.refresh}>
-                               {T("Recalculate")} <FontAwesomeIcon icon="sync"/>
-                             </Button>
-                             { transformed &&
-                               <Button variant="default"
-                                       onClick={()=>this.setState({transform: {}})}>
-                                 {T("Clear")}
-                                 <FontAwesomeIcon icon="filter"/>
-                               </Button>
-                             }
-                           </div>
-                         </div>
-                       </>;
-
-            }
-            return <>
-                     <div className="col-12">
-                       { !this.props.no_toolbar &&
-                         <Navbar className="toolbar">
-                           { this.props.toolbar || <></> }
-                         </Navbar> }
-                       <div className="no-content">
-                         <div>{T("No Data Available.")}</div>
-                       </div>
-                     </div>
-                   </>;
-        }
-
-        let table_options = this.props.params.TableOptions || {};
-        let rows = this.state.rows;
-        let column_names = [];
-        let columns = [{dataField: '_id', hidden: true}];
-        let prop_columns = this.props.columns || {};
-        for(var i=0;i<this.state.columns.length;i++) {
-            let name = this.state.columns[i];
-
-            let definition ={ dataField: name,
-                              text: this.props.translate_column_headers ?
-                              T(name) : name};
-
-            if(_.isObject(prop_columns[name])) {
-                Object.assign(definition, prop_columns[name]);
-            }
-
-            if (this.props.renderers && this.props.renderers[name]) {
-                definition.formatter = this.props.renderers[name];
-            } else {
-                definition.formatter = this.getColumnRenderer(
-                    name, this.state.column_types);
-            }
-
-            if (this.props.prevent_transformations &&
-                this.props.prevent_transformations[name]) {
-                definition.no_transformation = true;
-            }
-
-            if (this.state.toggles[name]) {
-                definition.hidden = true;
-            } else {
-                column_names.push(name);
-            }
-
-            // Allow the user to specify the column type for
-            // rendering. This can be done in the notebook by simply
-            // setting a VQL variable:
-            // LET ColumnTypes = dict(BootTime="timestamp")
-            // Or in an artifact using the column_types field
-            definition.type = table_options[name];
-
-            // If the user does not override the table options in VQL,
-            // the column types are set from the artifact's
-            // definition.
-            _.each(this.state.column_types, x=>{
-                if (x.name === name && !definition.type) {
-                    definition.type = x.type;
-                }
-            });
-
-            columns.push(definition);
-        }
-
-        // Add an id field for react ordering.
-        for (var j=0; j<rows.length; j++) {
-            rows[j]["_id"] = j;
-        }
-
-        if (this.props.no_transformations) {
-            columns = formatColumns(columns, this.props.env);
-        } else {
-            columns = formatColumns(columns, this.props.env, this.headerFormatter);
-        }
-
-        let total_size = this.state.total_size || 0;
-        if (total_size < 0 && !_.isEmpty(this.state.rows)) {
-            total_size = this.state.rows.length + this.state.start_row;
-            if (total_size > 500) {
-                total_size = 500;
-            }
-        }
         let transformed = this.getTransformed();
+        let active_columns = this.activeColumns();
         let downloads = Object.assign({}, this.props.params);
-        if (!_.isEqual(this.state.all_columns, column_names)) {
-            downloads.columns = column_names;
-        }
-        return (
-            <div className="velo-table full-height">
-              <Spinner loading={!this.props.no_spinner && this.state.loading} />
-              <ToolkitProvider
-                bootstrap4
-                keyField="_id"
-                data={ rows }
-                columns={ columns }
-                toggles={this.state.toggles}
-                columnToggle
-            >
-            {
-                props => (
-                    <div className="col-12">
-                      { !this.props.no_toolbar &&
-                        <Navbar className="toolbar">
-                          <ButtonGroup>
-                            <ColumnToggleList { ...props.columnToggleProps }
-                                              onColumnToggle={(c)=>{
-                                                  // Do not make a copy
-                                                  // here because set
-                                                  // state is not
-                                                  // immediately visible
-                                                  // and this will be
-                                                  // called for each
-                                                  // column.
-                                                  let toggles = this.state.toggles;
-                                                  toggles[c] = !toggles[c];
-                                                  this.setState({toggles: toggles});
-                                              }}
-                                              toggles={this.state.toggles} />
-                            <InspectRawJson rows={this.state.rows} />
-                            <Button variant="default"
-                                    target="_blank" rel="noopener noreferrer"
-                                    data-tooltip={T("Download JSON")}
-                                    data-position="right"
-                                    className="btn-tooltip"
-                                    href={api.href("/api/v1/DownloadTable",
-                                                   Object.assign(downloads, {
-                                                       timezone: timezone,
-                                                       download_format: "json",
-                                                   }), {internal: true})}>
-                              <FontAwesomeIcon icon="download"/>
-                              <span className="sr-only">{T("Download JSON")}</span>
-                            </Button>
-                            <Button variant="default"
-                                    target="_blank" rel="noopener noreferrer"
-                                    data-tooltip={T("Download CSV")}
-                                    data-position="right"
-                                    className="btn-tooltip"
-                                    href={api.href("/api/v1/DownloadTable",
-                                                   Object.assign(downloads, {
-                                                       timezone: timezone,
-                                                       download_format: "csv",
-                                                   }), {internal: true})}>
-                              <FontAwesomeIcon icon="file-csv"/>
-                              <span className="sr-only">{T("Download CSV")}</span>
-                            </Button>
-                          </ButtonGroup>
-                          { transformed.length > 0 &&
-                            <ButtonGroup className="float-right">
-                              { transformed }
-                            </ButtonGroup>
-                          }
-                          { this.props.toolbar || <></> }
-                        </Navbar> }
-                      <div className="row col-12">
-                        <BootstrapTable
-                          { ...props.baseProps }
-                          hover
-                          remote
-                          condensed
-                          selectRow={ this.props.selectRow }
-                          noDataIndication={T("Table is Empty")}
-                          keyField="_id"
-                          headerClasses="alert alert-secondary paged-table-header"
-                          bodyClasses="fixed-table-body"
-                          rowClasses={this.props.row_classes}
-                          toggles={this.state.toggles}
-                          onTableChange={(type, { page, sizePerPage }) => {
-                              this.setState({start_row: page * sizePerPage});
-                          }}
-                          pagination={ paginationFactory({
-                              showTotal: true,
-                              sizePerPage: this.state.page_size,
-                              totalSize: total_size,
-                              paginationTotalRenderer: this.customTotal,
-                              currSizePerPage: this.state.page_size,
-                              onSizePerPageChange: value=>{
-                                  this.setState({page_size: value});
-                              },
-                              pageStartIndex: 0,
-                              page: parseInt(this.state.start_row / this.state.page_size),
-                              pageListRenderer: ({pages, onPageChange})=>pageListRenderer({
-                                  totalRows: total_size,
-                                  pageSize: this.state.page_size,
-                                  pages: pages,
-                                  currentPage: parseInt(this.state.start_row / this.state.page_size),
-                                  onPageChange: onPageChange}),
-                              sizePerPageRenderer
-                          }) }
-                        />
-                      </div>
-                    </div>
-                )
-            }
-              </ToolkitProvider>
-              { this.state.showStackDialog &&
-                <StackDialog
-                  name={this.state.showStackDialog}
-                  onClose={()=>this.setState({showStackDialog: false})}
-                  navigateToRow={row=>this.setState({start_row: row})}
-                  stack_path={this.state.stack_path}
 
-                  transform={this.state.stack_transforms[
-                      this.state.showStackDialog] || {}}
-                  setTransform={t=>{
-                      let stack_transforms = this.state.stack_transforms;
-                      stack_transforms[this.state.showStackDialog] = t;
-                      this.setState({stack_transforms: stack_transforms});
-                  }}
-                />
+        if (!_.isEqual(this.state.all_columns, active_columns)) {
+            downloads.columns = active_columns;
+        }
+
+        return (
+            <Navbar className="toolbar">
+              <ButtonGroup>
+                <ColumnToggle onToggle={(c)=>{
+                    // Do not make a copy here because set state is
+                    // not immediately visible and this will be called
+                    // for each column.
+                    let toggles = this.state.toggles;
+                    toggles[c] = !toggles[c];
+                    this.setState({toggles: toggles});
+                }}
+                              columns={this.state.columns}
+                              toggles={this.state.toggles} />
+                <InspectRawJson rows={this.state.rows} />
+                <ToolTip tooltip={T("Download JSON")}>
+                  <Button variant="default"
+                          target="_blank" rel="noopener noreferrer"
+                          href={api.href("/api/v1/DownloadTable",
+                                         Object.assign(downloads, {
+                                             timezone: timezone,
+                                             download_format: "json",
+                                         }), {internal: true})}>
+                    <FontAwesomeIcon icon="download"/>
+                    <span className="sr-only">{T("Download JSON")}</span>
+                  </Button>
+                </ToolTip>
+                <ToolTip tooltip={T("Download CSV")}>
+                  <Button variant="default"
+                          target="_blank" rel="noopener noreferrer"
+                          href={api.href("/api/v1/DownloadTable",
+                                         Object.assign(downloads, {
+                                             timezone: timezone,
+                                             download_format: "csv",
+                                         }), {internal: true})}>
+                    <FontAwesomeIcon icon="file-csv"/>
+                    <span className="sr-only">{T("Download CSV")}</span>
+                  </Button>
+                </ToolTip>
+
+                { this.renderPaginator() }
+
+              </ButtonGroup>
+              { transformed.length > 0 &&
+                <ButtonGroup className="float-right">
+                  { transformed }
+                </ButtonGroup>
               }
-            </div>
+              { this.props.toolbar || <></> }
+            </Navbar>
         );
+    }
+
+    renderHeader = (column, idx)=>{
+        let column_name = column;
+        if (this.props.translate_column_headers) {
+            column_name = T(column_name);
+        }
+
+        // Do not allow this column to be sorted/filtered
+        if (this.props.prevent_transformations &&
+            this.props.prevent_transformations[column]) {
+            return <th key={idx}>
+                     <table className="paged-table-header">
+                       <tbody>
+                         <tr>
+                           <td>{ column_name }</td>
+                           <td className="sort-element">
+                             <ButtonGroup>
+                               <Button
+                                 className="hidden-sorter"
+                                 size="sm"
+                               ></Button>
+                             </ButtonGroup>
+
+                           </td>
+                         </tr>
+                       </tbody>
+                     </table>
+                   </th>;
+        }
+
+        return (
+            <th key={idx}>
+              <table className="paged-table-header">
+                <tbody>
+                  <tr>
+                    <td>{ column_name }</td>
+                    <td className="sort-element">
+                      <ButtonGroup>
+                        { this.isColumnStacked(column) &&
+                          <ToolTip tooltip={T("Stack")}  key={idx}>
+                            <Button variant="default"
+                                    target="_blank" rel="noopener noreferrer"
+                                    onClick={e=>{
+                                        this.setState({showStackDialog: column});
+                                        e.preventDefault();
+                                        return false;
+                                    }}>
+                              <FontAwesomeIcon icon="layer-group"/>
+                            </Button>
+                          </ToolTip>
+                        }
+                        <ColumnSort column={column}
+                                    transform={this.state.transform}
+                                    setTransform={this.setTransform}
+                        />
+
+                        <ColumnFilter column={column}
+                                      transform={this.state.transform}
+                                      setTransform={this.setTransform}
+                        />
+                      </ButtonGroup>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </th>
+        );
+    }
+
+    renderCell = (column, row, rowIdx) => {
+        let t = this.state.toggles[column];
+        if(t) {return undefined;};
+
+        let cell = row[column];
+        let renderer = this.getColumnRenderer(column);
+
+        return <td key={column}>
+                 { renderer(cell, row, this.props.env)}
+               </td>;
+    };
+
+    selectRow = (row, idx)=>{
+        if (!this.props.selectRow) {
+            return;
+        }
+
+        if(this.props.selectRow.onSelect) {
+            this.props.selectRow.onSelect(row);
+        }
+
+        this.setState({selected_row: row, selected_row_idx: idx});
+    }
+
+    renderRow = (row, idx)=>{
+        let selected_cls = this.props.selectRow && this.props.selectRow.classes;
+        if(this.state.selected_row_idx !== idx) {
+            selected_cls = "";
+        }
+
+        if(this.props.row_classes) {
+            selected_cls += " " + this.props.row_classes(row,idx);
+        }
+
+        return (
+            <tr key={idx}
+                onClick={x=>this.selectRow(row, idx)}
+                className={selected_cls}>
+              {_.map(this.activeColumns(), c=>this.renderCell(c, row, idx))}
+            </tr>);
+    }
+
+    renderPaginator = (direction)=>{
+        let end = this.state.start_row + this.state.page_size;
+        if(end>this.state.total_size) {
+            end=this.state.total_size;
+        }
+
+        return (
+            <>
+              <TablePaginationControl
+                total_size={this.state.total_size}
+                start_row={this.state.start_row}
+                page_size={this.state.page_size}
+                current_page={this.state.start_row / this.state.page_size}
+                onRowChange={row_offset=>this.setState({start_row: row_offset})}
+                onPageSizeChange={size=>this.setState({page_size: size})}
+                direction={direction}
+              />
+            </>    );
+    }
+
+    render = ()=>{
+        return (
+            <>{ this.renderToolbar() }
+              <Table className="paged-table">
+                <thead>
+                  <tr className="paged-table-header">
+                    {_.map(this.activeColumns(), this.renderHeader)}
+                  </tr>
+                </thead>
+                <tbody className="fixed-table-body">
+                  {_.map(this.state.rows, this.renderRow)}
+                </tbody>
+              </Table>
+            </>);
     }
 }
 

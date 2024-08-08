@@ -8,7 +8,6 @@ import ToolkitProvider from 'react-bootstrap-table2-toolkit/dist/react-bootstrap
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { textFilter } from 'react-bootstrap-table2-filter';
 import { Type } from 'react-bootstrap-table2-editor';
 import BootstrapTable from 'react-bootstrap-table-next';
 import paginationFactory from 'react-bootstrap-table2-paginator';
@@ -19,19 +18,17 @@ import Modal from 'react-bootstrap/Modal';
 import Navbar from 'react-bootstrap/Navbar';
 import VeloTimestamp from "../utils/time.jsx";
 import URLViewer from "../utils/url.jsx";
-import VeloNotImplemented from '../core/notimplemented.jsx';
 import VeloAce, { SettingsButton } from '../core/ace.jsx';
 import VeloValueRenderer from '../utils/value.jsx';
 import { NavLink } from "react-router-dom";
 import ClientLink from '../clients/client-link.jsx';
 import { HexViewPopup } from '../utils/hex.jsx';
-import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
-import Tooltip from 'react-bootstrap/Tooltip';
+import ToolTip from '../widgets/tooltip.jsx';
 import T from '../i8n/i8n.jsx';
 import TreeCell from './tree-cell.jsx';
 import ContextMenu from '../utils/context.jsx';
 import PreviewUpload from '../widgets/preview_uploads.jsx';
-import filterFactory from 'react-bootstrap-table2-filter';
+import filterFactory, { textFilter } from 'react-bootstrap-table2-filter';
 import { JSONparse } from '../utils/json_parse.jsx';
 import Download from "../widgets/download.jsx";
 
@@ -65,28 +62,27 @@ export class InspectRawJson extends Component {
 
     render() {
         if (!this.state.show) {
-            return <Button variant="default"
-                      data-tooltip={T("Inspect Raw JSON")}
-                      data-position="right"
-                      className="btn-tooltip"
+            return <ToolTip tooltip={T("Inspect Raw JSON")}>
+                     <Button variant="default"
                       onClick={() => this.setState({show: true})} >
-                <FontAwesomeIcon icon="binoculars"/>
-            </Button>;
+                       <FontAwesomeIcon icon="binoculars"/>
+                     </Button>
+                   </ToolTip>;
         }
 
         let rows = [];
         let start = this.props.start || 0;
         let max_rows = 100;
 
+        if (max_rows > this.props.rows.length) {
+            max_rows = this.props.rows.length;
+        }
+
         for(var i=start;i<start + max_rows;i++) {
-            if (this.props.rows.length < i) {
-                break;
-            }
             let copy = Object.assign({}, this.props.rows[i]);
             delete copy["_id"];
             rows.push(copy);
         }
-
         let serialized = JSON.stringify(rows, null, 2);
 
         return (
@@ -130,7 +126,7 @@ export class InspectRawJson extends Component {
 // Toggle columns on or off - helps when the table is very wide.
 export const ColumnToggleList = (e) => {
     const [open, setOpen] = React.useState(false);
-    const onToggle = (isOpen, ev, metadata) => {
+    const onToggle = (isOpen, metadata) => {
         if (metadata.source === "select") {
             setOpen(true);
             return;
@@ -153,21 +149,17 @@ export const ColumnToggleList = (e) => {
                  key={ column.dataField }
                  eventKey={column.dataField}
                  active={!hidden}
-                 onSelect={c=>onColumnToggle(c)}
-                 data-position="right"
-                 className="btn-tooltip"
-                 data-tooltip={T("Show/Hide Columns")}
                >
                  { column.text }
                </Dropdown.Item>;
     });
 
     return (
-        <>
+        <ToolTip tooltip={T("Show/Hide Columns")}>
           <Dropdown show={open}
-                    data-position="right"
-                    data-tooltip={T("Show/Hide Columns")}
-                    className="btn-tooltip"
+                    onSelect={c=>{
+                        onColumnToggle(c);
+                      }}
                     onToggle={onToggle}>
             <Dropdown.Toggle variant="default" id="dropdown-basic">
               <FontAwesomeIcon icon="columns"/>
@@ -186,7 +178,7 @@ export const ColumnToggleList = (e) => {
                   {T("Set All")}
                 </Dropdown.Item> :
                 <Dropdown.Item
-                  onSelect={()=>{
+                  onClick={()=>{
                       _.each(columns, c=>{
                           if(!toggles[c.dataField]){
                               onColumnToggle(c.dataField);
@@ -199,7 +191,7 @@ export const ColumnToggleList = (e) => {
               { buttons }
             </Dropdown.Menu>
           </Dropdown>
-        </>
+        </ToolTip>
     );
 };
 
@@ -242,10 +234,12 @@ class VeloTable extends Component {
         headers: PropTypes.object,
 
         column_renderers: PropTypes.object,
+
+        // If set we do not render any toolbar
+        no_toolbar: PropTypes.bool,
     }
 
     state = {
-        download: false,
         toggles: {},
         from_page: 0,
         page_size: 10,
@@ -261,7 +255,7 @@ class VeloTable extends Component {
         this.setState({toggles: toggles});
     }
 
-    defaultFormatter = (cell, row, rowIndex) => {
+    defaultFormatter = (cell, row, env) => {
         return <VeloValueRenderer value={cell}/>;
     }
 
@@ -325,7 +319,7 @@ class VeloTable extends Component {
 
             if (this.props.renderers && this.props.renderers[name]) {
                 definition.formatter = this.props.renderers[name];
-            } else {
+            } else if(!definition.formatter) {
                 definition.formatter = this.defaultFormatter;
             }
 
@@ -350,33 +344,31 @@ class VeloTable extends Component {
                 toggles={this.state.toggles}
                 columnToggle
             >
-            {
-                props => (
-                    <div className="col-12">
-                      <VeloNotImplemented
-                        show={this.state.download}
-                        resolve={() => this.setState({download: false})}
-                      />
-                      <Navbar className="toolbar">
-                        <ButtonGroup>
-                          <ColumnToggleList { ...props.columnToggleProps }
-                                            onColumnToggle={(c)=>{
-                                                // Do not make a copy
-                                                // here because set
-                                                // state is not
-                                                // immediately visible
-                                                // and this will be
-                                                // called for each
-                                                // column.
-                                                let toggles = this.state.toggles;
-                                                toggles[c] = !toggles[c];
-                                                this.setState({toggles: toggles});
-                                            }}
-                                            toggles={this.state.toggles} />
-                          <InspectRawJson rows={this.props.rows}
-                                          start={start}/>
-                        </ButtonGroup>
-                      </Navbar>
+                {
+                    props => (
+                        <div className="col-12">
+                          { !this.props.no_toolbar &&
+                            <Navbar className="toolbar">
+                              <ButtonGroup>
+                                <ColumnToggleList { ...props.columnToggleProps }
+                                                  onColumnToggle={(c)=>{
+                                                      // Do not make a copy
+                                                      // here because set
+                                                      // state is not
+                                                      // immediately visible
+                                                      // and this will be
+                                                      // called for each
+                                                      // column.
+                                                      let toggles = this.state.toggles;
+                                                      toggles[c] = !toggles[c];
+                                                      this.setState({toggles: toggles});
+                                                  }}
+                                                  toggles={this.state.toggles} />
+                                <InspectRawJson rows={this.props.rows}
+                                                start={start}/>
+                              </ButtonGroup>
+                            </Navbar>
+                          }
                       <div className="row col-12">
                         <BootstrapTable
                           { ...props.baseProps }
@@ -409,6 +401,10 @@ export default VeloTable;
 
 const int_regex = /^-?[0-9]+$/;
 
+// The JSON response from the server is encoded as a strict protobuf
+// with string cell values. Here we expand it into arbitrary JSON objects.
+
+// TODO: This needs to be changed on the server to deliver a proper JSON response.
 export function PrepareData(value) {
     var rows = [];
     let columns = value.columns || [];
@@ -468,6 +464,208 @@ export function sortCaret(order, column) {
 
     return null;
 }
+
+// Returns a formatter by type.
+export function getFormatter(column_type, text) {
+    switch(column_type) {
+    case "number":
+        return (cell, row) => <span className="right-align">{cell}</span>;
+
+    case "mb":
+        return (cell, row) => {
+            let result = parseInt(cell/1024/1024);
+            let value = cell;
+            let suffix = "";
+            if (_.isFinite(result) && result > 0) {
+                suffix = "Mb";
+                value = parseInt(result);
+            } else {
+                result = parseInt(cell /1024);
+                if (_.isFinite(result) && result > 0) {
+                    suffix = "Kb";
+                    value = parseInt(result);
+                } else {
+                    if (_.isFinite(cell)) {
+                        suffix = "b";
+                        value = parseInt(cell);
+                    }
+                }
+            }
+            return <ToolTip tooltip={cell}>
+                     <span className="number right-align">
+                       {value} {suffix}
+                     </span>
+                   </ToolTip>;
+        };
+    case "timestamp":
+    case "nano_timestamp":
+        return (cell, row) => {
+            return <VeloTimestamp usec={cell}/>;
+        };
+
+    case "nobreak":
+        return (cell, row) => {
+            return <div className="no-break">{cell}</div>;
+        };
+
+    case "tree":
+        return (cell, row) => {
+            if (_.isObject(cell)) {
+                return <TreeCell
+                         name={text}
+                         data={cell}/>;
+            };
+            return cell;
+        };
+
+        // A URL can be formatted as a markdown URL: [desc](url)
+        // or can be a JSON object {url:"...", desc:"..."}
+    case "url":
+        return (cell, row) => {
+            if(_.isObject(cell)) {
+                return <URLViewer url={cell.url} desc={cell.desc}/>;
+            }
+            return <URLViewer url={cell}/>;
+        };
+
+    case "url_internal":
+        return (cell, row) => {
+            if(_.isObject(cell)) {
+                return <URLViewer internal={true}
+                             url={cell.url} desc={cell.desc}/>;
+            }
+            return <URLViewer url={cell}/>;
+        };
+
+    case "safe_url":
+        return (cell, row) => {
+            return <URLViewer url={cell} safe={true}/>;
+        };
+
+    case "flow":
+        return (cell, row) => {
+            let client_id = row["ClientId"];
+            if (!client_id) {
+                return cell;
+            };
+            return <NavLink
+                     tabIndex="0"
+                     id={cell}
+                     to={"/collected/" + client_id + "/" + cell}>{cell}
+                   </NavLink>;
+        };
+
+    case "collapsed":
+        return (cell, row) => {
+            return <VeloValueRenderer
+                    value={cell} collapsed={true}/>;
+        };
+
+    case "download":
+        return (cell, row) => {
+            // Ideally this is a UploadResponse object described
+            // in /uploads/api.go. Such an object is emitted by
+            // the uploads() VQL plugin.
+            if(_.isObject(cell)) {
+                let description = cell.Path;
+                let fs_components = cell.Components || [];
+                return <Download fs_components={fs_components}
+                                 text={description}
+                                 filename={description}/>;
+            }
+
+            let components = row._Components;
+            let description = cell;
+            let filename = row.client_path;
+
+            return <Download fs_components={components}
+                             text={description}
+                             filename={filename}/>;
+        };
+
+    case "preview_upload":
+    case "upload_preview":
+        return (cell, row, env) => {
+            let new_env = Object.assign({}, env || {});
+
+            console.log(cell, row, env);
+
+            // If the row has a more updated client id and flow id
+            // use them, otherwise use the ones from the query
+            // env. For example when this component is viewed in a
+            // hunt notebook we require the client id and flow id
+            // to be in the table. But when viewed in the client
+            // notebook we can use the client id and flow id from
+            // the notebook env.
+            if(row.ClientId) {
+                new_env.client_id = row.ClientId;
+            }
+            if(row.FlowId) {
+                new_env.flow_id = row.FlowId;
+            }
+            return <PreviewUpload
+                     env={new_env}
+                     upload={cell}/>;
+        };
+
+    case "client":
+    case "client_id":
+        return (cell, row) => {
+            return <ClientLink client_id={cell}/>;
+        };
+
+    case "hex":
+        return (cell, row) => {
+            if (!cell.substr) return <></>;
+            let bytearray = [];
+            for (let c = 0; c < cell.length; c += 2) {
+                let term = cell.substr(c, 2);
+                if (term.match(/[0-9a-fA-F]{2}/)) {
+                    bytearray.push(parseInt(term, 16));
+                } else {
+                    c--;
+                }
+            }
+            return <ContextMenu value={cell}>
+                     <HexViewPopup byte_array={bytearray}/>
+                   </ContextMenu>;
+        };
+    case "base64hex":
+    case "base64":
+        return (cell, row) => {
+            try {
+                let binary_string = atob(cell);
+                var len = binary_string.length;
+                var bytes = new Uint8Array(len);
+                for (var i = 0; i < len; i++) {
+                    bytes[i] = binary_string.charCodeAt(i);
+                }
+                return <ContextMenu value={cell}>
+                         <HexViewPopup byte_array={bytes}/>
+                       </ContextMenu>;
+            } catch(e) {
+                return <></>;
+            };
+        };
+
+    case "string":
+    case "bool":
+    case "date":
+    case undefined:
+        return (cell, row) => <ContextMenu value={cell}>
+                                <VeloValueRenderer value={cell} />
+                              </ContextMenu>;
+
+    case "hidden":
+        return (cell, row) =><></>;
+
+    default:
+        console.log("Unsupported column type " + column_type);
+        return (cell, row) => <VeloValueRenderer value={cell} />;
+    };
+}
+
+
 
 export function formatColumns(columns, env, column_formatter) {
     _.each(columns, (x) => {
@@ -529,15 +727,11 @@ export function formatColumns(columns, env, column_formatter) {
                         }
                     }
                 }
-                return <OverlayTrigger
-                         delay={{show: 250, hide: 400}}
-                         overlay={(props)=>{
-                             return <Tooltip {...props}>{cell}</Tooltip>;
-                         }}>
+                return <ToolTip tooltip={cell}>
                          <span className="number">
                          {value} {suffix}
                          </span>
-                       </OverlayTrigger>;
+                       </ToolTip>;
             };
             if (!_.isObject(x.style)) {
                 x.style = {};

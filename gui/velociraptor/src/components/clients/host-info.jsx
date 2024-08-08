@@ -10,9 +10,9 @@ import ShellViewer from "./shell-viewer.jsx";
 import VeloReportViewer from "../artifacts/reporting.jsx";
 import { LabelClients } from './clients-list.jsx';
 
-import ToggleButtonGroup from 'react-bootstrap/ToggleButtonGroup';
-import ToggleButton from 'react-bootstrap/ToggleButton';
-import CardDeck from 'react-bootstrap/CardDeck';
+import Navbar from 'react-bootstrap/Navbar';
+import ButtonGroup from 'react-bootstrap/ButtonGroup';
+import Row from 'react-bootstrap/Row';
 import Card from 'react-bootstrap/Card';
 import Button from 'react-bootstrap/Button';
 import Modal from 'react-bootstrap/Modal';
@@ -24,6 +24,10 @@ import api from '../core/api-service.jsx';
 import {CancelToken} from 'axios';
 import "./host-info.css";
 import { runArtifact } from "../flows/utils.jsx";
+import InFlightViewer from "./inflight_viewer.jsx";
+import ToolTip from '../widgets/tooltip.jsx';
+import classNames from "classnames";
+
 import T from '../i8n/i8n.jsx';
 
 const INTERROGATE_POLL_TIME = 2000;
@@ -294,7 +298,7 @@ class VeloHostInfo extends Component {
         let client_id = this.props.client && this.props.client.client_id;
         if (this.state.mode === 'brief') {
             return (
-                <CardDeck className="dashboard">
+                <Row className="dashboard">
                   <Card>
                     <Card.Header>{ info.os_info.fqdn }</Card.Header>
                     <Card.Body>
@@ -370,19 +374,24 @@ class VeloHostInfo extends Component {
                         <dd className="col-sm-9">
                           { info.os_info.machine }
                         </dd>
-            <dt className="col-sm-3">MAC Addresses</dt>
-            <dd className="col-sm-9">
-              { _.map(info.os_info.mac_addresses, (address, idx) => {
-                  return <div key={idx}>{address}</div>;
-              })}
-            </dd>
+                        <dt className="col-sm-3">MAC Addresses</dt>
+                        <dd className="col-sm-9">
+                          { _.map(info.os_info.mac_addresses, (address, idx) => {
+                              return <div key={idx}>{address}</div>;
+                          })}
+                        </dd>
                       </dl>
                       <hr />
+                      { info.in_flight_flows &&
+                        <>
+                          <InFlightViewer client_info={info}/>
+                          <hr />
+                        </>}
                       <Card.Header>{T("Client Metadata")}</Card.Header>
                       <MetadataEditor client_id={client_id} />
                     </Card.Body>
                   </Card>
-                </CardDeck>
+                </Row>
             );
         };
 
@@ -467,23 +476,21 @@ class VeloHostInfo extends Component {
         let is_quarantined = info.labels.includes("Quarantine");
 
         if (is_quarantined) {
-            return <Button variant="default"
-                           data-tooltip={T("Unquarantine Host")}
-                           data-position="right"
-                           className="btn-tooltip"
-                           onClick={this.unquarantineHost}>
-                     <FontAwesomeIcon icon="virus-slash" />
-                   </Button>;
+            return <ToolTip tooltip={T("Unquarantine Host")}>
+                     <Button variant="default"
+                             onClick={this.unquarantineHost}>
+                       <FontAwesomeIcon icon="virus-slash" />
+                     </Button>
+                   </ToolTip>;
         }
-        return <Button variant="default"
-                       data-tooltip={T("Quarantine Host")}
-                       data-position="right"
-                       className="btn-tooltip"
-                       onClick={()=>this.setState({
-                           showQuarantineDialog: true,
-                       })}>
-                 <FontAwesomeIcon icon="medkit" />
-               </Button>;
+        return <ToolTip tooltip={T("Quarantine Host")}>
+                 <Button variant="default"
+                         onClick={()=>this.setState({
+                             showQuarantineDialog: true,
+                         })}>
+                   <FontAwesomeIcon icon="medkit" />
+                 </Button>
+               </ToolTip>;
     }
 
     render() {
@@ -498,11 +505,15 @@ class VeloHostInfo extends Component {
                                 })}
               />}
               <div className="full-width-height">
-                <div className="client-info">
-                  <div className="btn-group float-left toolbar" data-toggle="buttons">
+                <Navbar className="toolbar">
+                  <ButtonGroup className="" data-toggle="buttons">
                     <Button variant="default"
                             as="a"
-                            onClick={this.startInterrogate}
+                            onClick={e=>{
+                                this.startInterrogate();
+                                e.preventDefault();
+                                return false;
+                            }}
                             disabled={this.state.interrogateOperationId}>
                       { this.state.interrogateOperationId ?
                         <FontAwesomeIcon icon="spinner" spin/>:
@@ -529,39 +540,41 @@ class VeloHostInfo extends Component {
                             this.setState({showLabelDialog: false});
                             this.updateClientInfo();
                         }}/>}
-                    <Button variant="default"
-                            data-tooltip={T("Add Label")}
-                            data-position="right"
-                            className="btn-tooltip"
-                            onClick={()=>this.setState({
-                                showLabelDialog: true,
-                            })}>
+                    <ToolTip tooltip={T("Add Label")}>
+                      <Button variant="default"
+                              onClick={e=>{
+                                  this.setState({showLabelDialog: true});
+                                  e.preventDefault();
+                              }}>
                         <FontAwesomeIcon icon="tags" />
-                    </Button>
-                  </div>
+                      </Button>
+                    </ToolTip>
+                  </ButtonGroup>
 
-                  <ToggleButtonGroup type="radio"
-                                     name="mode"
-                                     defaultValue={this.state.mode}
-                                     onChange={(mode) => this.setMode(mode)}
-                                     className="mb-2">
-                    <ToggleButton variant="default"
-                                  value='brief'>
+                  <ButtonGroup className="float-right">
+                    <Button variant="default"
+                            className={classNames({
+                                active: this.state.mode === "brief"})}
+                            onClick={(mode) => this.setMode("brief")}>
                       <FontAwesomeIcon icon="laptop"/>
                       <span className="button-label">{T("Overview")}</span>
-                    </ToggleButton>
-                    <ToggleButton variant="default"
-                                  value='detailed'>
+                    </Button>
+                    <Button variant="default"
+                            className={classNames({
+                                active: this.state.mode === "detailed"})}
+                            onClick={(mode) => this.setMode("detailed")}>
                       <FontAwesomeIcon icon="tasks"/>
                       <span className="button-label">{T("VQL Drilldown")}</span>
-                    </ToggleButton>
-                    <ToggleButton variant="default"
-                                  value='shell'>
+                    </Button>
+                    <Button variant="default"
+                            className={classNames({
+                                active: this.state.mode === "shell"})}
+                            onClick={(mode) => this.setMode("shell")}>
                       <FontAwesomeIcon icon="terminal"/>
                       <span className="button-label">{T("Shell")}</span>
-                    </ToggleButton>
-                  </ToggleButtonGroup>
-                </div>
+                    </Button>
+                  </ButtonGroup>
+                </Navbar>
                 <div className="clearfix"></div>
                 { this.renderContent() }
               </div>

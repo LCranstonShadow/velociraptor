@@ -12,18 +12,13 @@ import RegEx from './regex.jsx';
 import RegExArray from './regex_array.jsx';
 import UploadFileForm from './upload.jsx';
 import YaraEditor from './yara.jsx';
-import Tooltip from 'react-bootstrap/Tooltip';
-import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
+import ToolTip from '../widgets/tooltip.jsx';
 import ButtonGroup from 'react-bootstrap/ButtonGroup';
 import Alert from 'react-bootstrap/Alert';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import CSVForm from './csv.jsx';
 import Select from 'react-select';
 import T from '../i8n/i8n.jsx';
 import { JSONparse } from '../utils/json_parse.jsx';
-
-import BootstrapTable from 'react-bootstrap-table-next';
-import cellEditFactory, { Type } from 'react-bootstrap-table2-editor';
 import { parseCSV, serializeCSV } from '../utils/csv.jsx';
 import "./validated.css";
 import "./forms.css";
@@ -65,12 +60,6 @@ function convertToDate(x) {
 
     return null;
 }
-
-const renderToolTip = (props, params) => (
-    <Tooltip show={params.description} {...props}>
-       {params.description}
-     </Tooltip>
-);
 
 export default class VeloForm extends React.Component {
     static propTypes = {
@@ -116,6 +105,11 @@ export default class VeloForm extends React.Component {
         this.source.cancel();
         this.source = CancelToken.source();
 
+        let fields = {name: true};
+        if (this.props.param.sources) {
+            fields["sources"] = true;
+        };
+
         // Load all artifacts, but only keep the ones that match the
         // specified type
         api.post("v1/GetArtifacts",
@@ -123,7 +117,7 @@ export default class VeloForm extends React.Component {
                     search_term: "...",
                     type: artifact_type,
 
-                    // No field type: We want the list of sources too
+                    fields: fields,
 
                     // This might be too many to fetch at once but we
                     // are still fast enough for now.
@@ -166,6 +160,10 @@ export default class VeloForm extends React.Component {
                             } else {
                                 unnamed_sources++;
                             }
+                        }
+
+                        if(_.isEmpty(sources)) {
+                            selectable_names.push(desc.name);
                         }
 
                         // If there is a mix of unnamed sources and named
@@ -265,15 +263,13 @@ export default class VeloForm extends React.Component {
 
         case "regex":
             return (
-                  <Form.Group as={Row}>
+                <Form.Group as={Row} className="velo-form">
                   <Form.Label column sm="3">
-                    <OverlayTrigger
-                      delay={{show: 250, hide: 400}}
-                      overlay={(props)=>renderToolTip(props, param)}>
+                    <ToolTip tooltip={param.description}>
                       <div>
                         {name}
                       </div>
-                    </OverlayTrigger>
+                    </ToolTip>
                   </Form.Label>
                     <Col sm="8">
                       <RegEx
@@ -286,15 +282,11 @@ export default class VeloForm extends React.Component {
 
         case "regex_array":
             return (
-                  <Form.Group as={Row}>
+                  <Form.Group as={Row}  className="velo-form">
                   <Form.Label column sm="3">
-                    <OverlayTrigger
-                      delay={{show: 250, hide: 400}}
-                      overlay={(props)=>renderToolTip(props, param)}>
-                      <div>
-                        {name}
-                      </div>
-                    </OverlayTrigger>
+                    <ToolTip tooltip={param.description || ""}>
+                      {name}
+                    </ToolTip>
                   </Form.Label>
                     <Col sm="8">
                       <RegExArray
@@ -307,15 +299,13 @@ export default class VeloForm extends React.Component {
 
         case "yara":
             return (
-                  <Form.Group as={Row}>
+                  <Form.Group as={Row} className="velo-form">
                   <Form.Label column sm="3">
-                    <OverlayTrigger
-                      delay={{show: 250, hide: 400}}
-                      overlay={(props)=>renderToolTip(props, param)}>
+                    <ToolTip tooltip={param.description}>
                       <div>
                         {name}
                       </div>
-                    </OverlayTrigger>
+                    </ToolTip>
                   </Form.Label>
                     <Col sm="8">
                       <YaraEditor
@@ -339,15 +329,13 @@ export default class VeloForm extends React.Component {
             }
 
             return (
-                <Form.Group as={Row}>
+                <Form.Group as={Row} className="velo-form">
                   <Form.Label column sm="3">
-                    <OverlayTrigger
-                      delay={{show: 250, hide: 400}}
-                      overlay={(props)=>renderToolTip(props, param)}>
+                    <ToolTip tooltip={param.description}>
                       <div>
                         {name}
                       </div>
-                    </OverlayTrigger>
+                    </ToolTip>
                   </Form.Label>
                   <Col sm="8">
                     <ButtonGroup>
@@ -399,15 +387,13 @@ export default class VeloForm extends React.Component {
 
         case "choices":
             return (
-                <Form.Group as={Row}>
+                <Form.Group as={Row} className="velo-form">
                   <Form.Label column sm="3">
-                    <OverlayTrigger
-                      delay={{show: 250, hide: 400}}
-                      overlay={(props)=>renderToolTip(props, param)}>
+                    <ToolTip tooltip={param.description}>
                       <div>
                         {name}
                       </div>
-                    </OverlayTrigger>
+                    </ToolTip>
                   </Form.Label>
                   <Col sm="8">
                     <Form.Control as="select"
@@ -423,7 +409,7 @@ export default class VeloForm extends React.Component {
                 </Form.Group>
             );
 
-        case "multichoice":
+        case "multichoice": {
             let options = [];
             _.each(this.props.param.choices, x=>{
                 options.push({value: x, label: x});
@@ -433,15 +419,13 @@ export default class VeloForm extends React.Component {
                                  x=>{return {value: x, label: x};});
 
             return (
-                <Form.Group as={Row}>
+                <Form.Group as={Row} className="velo-form">
                   <Form.Label column sm="3">
-                    <OverlayTrigger
-                      delay={{show: 250, hide: 400}}
-                      overlay={(props)=>renderToolTip(props, param)}>
+                    <ToolTip tooltip={param.description}>
                       <div>
                         {name}
                       </div>
-                    </OverlayTrigger>
+                    </ToolTip>
                   </Form.Label>
                   <Col sm="8">
                     <Select
@@ -460,8 +444,8 @@ export default class VeloForm extends React.Component {
                   </Col>
                 </Form.Group>
             );
-
-        case "artifactset":
+        }
+        case "artifactset": {
             // No artifacts means we haven't loaded yet.  If there are
             // truly no artifacts, we've got bigger problems.
             if (this.state.multichoices === undefined ||
@@ -470,7 +454,7 @@ export default class VeloForm extends React.Component {
             }
             if (Object.keys(this.state.multichoices).length === 0) {
                 return (
-                  <Form.Group as={Row}>
+                  <Form.Group as={Row} className="velo-form">
                     <Alert variant="danger">
                       Warning: No artifacts found for type {
                           this.props.param.artifact_type
@@ -479,52 +463,57 @@ export default class VeloForm extends React.Component {
                   </Form.Group>
                 );
             }
+
+            let a_options = [];
+            let a_defaults = [];
+
+            _.each(this.state.multichoices, (v, k)=>{
+                a_options.push({value: k, label: k});
+                if(v.enabled) {
+                    a_defaults.push({value: k, label: k});
+                }
+            });
+
             return (
-                <Form.Group as={Row}>
+                <Form.Group as={Row} className="velo-form">
                   <Form.Label column sm="3">
-                    <OverlayTrigger
-                      delay={{show: 250, hide: 400}}
-                      overlay={(props)=>renderToolTip(props, param)}>
+                    <ToolTip tooltip={param.description}>
                       <div>
                         {name}
                       </div>
-                    </OverlayTrigger>
+                    </ToolTip>
                   </Form.Label>
                   <Col sm="8">
-                      { _.map(Object.keys(this.state.multichoices), (key, idx) => {
-                        return (
-                            <OverlayTrigger
-                              key={key}
-                              delay={{show: 250, hide: 400}}
-                              overlay={(props)=>renderToolTip(props, this.state.multichoices[key])}>
-                              <div>
-                                <Form.Switch label={key}
-                                             id={key}
-                                             checked={this.state.multichoices[key].enabled}
-                                             onChange={this.setMulti.bind(this, key)} />
-                              </div>
-                            </OverlayTrigger>
-                        );
-                      })}
+                    <Select
+                      placeholder={T("Choose one or more items")}
+                      className="velo"
+                      classNamePrefix="velo"
+                      closeMenuOnSelect={false}
+                      isMulti
+                      defaultValue={a_defaults}
+                      onChange={e=>{
+                          let data = _.map(e, x=>x.value);
+                          this.props.setValue(JSON.stringify(data));
+                      }}
+                      options={a_options}
+                      />
                   </Col>
                 </Form.Group>
             );
-
+        }
         case "bool":
             return (
-                <Form.Group as={Row}>
+                <Form.Group as={Row} className="velo-form">
                   <Form.Label column sm="3">
-                    <OverlayTrigger
-                      delay={{show: 250, hide: 400}}
-                      overlay={(props)=>renderToolTip(props, param)}>
+                    <ToolTip tooltip={param.description}>
                       <div>
                         {name}
                       </div>
-                    </OverlayTrigger>
+                    </ToolTip>
                   </Form.Label>
                   <Col sm="8">
                     <Form.Check
-                      type="checkbox"
+                      type="switch"
                       label={param.description}
                       onChange={(e) => {
                           if (e.currentTarget.checked) {
@@ -547,15 +536,13 @@ export default class VeloForm extends React.Component {
                    />;
         default:
             return (
-                  <Form.Group as={Row}>
+                  <Form.Group as={Row} className="velo-form">
                   <Form.Label column sm="3">
-                    <OverlayTrigger
-                      delay={{show: 250, hide: 400}}
-                      overlay={(props)=>renderToolTip(props, param)}>
+                    <ToolTip tooltip={param.description}>
                       <div>
                         {name}
                       </div>
-                    </OverlayTrigger>
+                    </ToolTip>
                   </Form.Label>
                   <Col sm="8">
                     <Form.Control as="textarea"

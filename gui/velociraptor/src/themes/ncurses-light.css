@@ -196,11 +196,6 @@ body.ncurses-light {
   color: var(--color-canvas-background);
 }
 
-.ncurses-light input[type="checkbox"], input[type="radio"] {
-  accent-color: white;
-  transform: scale(1.5);
-}
-
 .ncurses-light .icon-small[alt="online"] {
   -ms-interpolation-mode: nearest-neighbor;
   image-rendering: -webkit-optimize-contrast;
@@ -973,10 +968,6 @@ body.ncurses-light {
   color: var(--color-foreground);
 }
 
-.ncurses-light .new-artifact-search-table.selectable > div > table > tbody > tr.row-selected > td {
-  background: var(--color-accent-100);
-}
-
 .ncurses-light th > button.btn.btn-outline-default {
   background: darkgrey;
 }
@@ -1319,4 +1310,9 @@ color: #ffff00;
 .ncurses-light .json-boolean {
 padding-left: 5px;
 color: #ff00ff;
+}
+
+.ncurses-light .accordion-item,
+.ncurses-light .accordion .accordion-item .accordion-header .accordion-button {
+    border-radius: 0;
 }

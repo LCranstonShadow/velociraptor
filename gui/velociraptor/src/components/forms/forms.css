@@ -31,15 +31,6 @@
     width: 100%;
 }
 
-input[type="checkbox"][value="Y"] {
-    accent-color: var(--color-btn-default-background-hover);
-}
-
-.custom-control-input:checked ~ .custom-control-label::before {
-    color: var(--color-foreground);
-    border-color: var(--color-btn-default-background-hover);
-    background-color: var(--accent-color);
-}
 
 .full-width {
     width: 100%;
@@ -53,4 +44,9 @@ input[type="checkbox"][value="Y"] {
 .react-datetime-picker.btn-group  .react-datetime-picker__wrapper {
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
+}
+
+.velo-form .form-switch {
+    margin-top: 7px;
+    margin-left: 20px;
 }

@@ -2,21 +2,22 @@ import "./hunt.css";
 import React from 'react';
 import PropTypes from 'prop-types';
 import _ from 'lodash';
-import BootstrapTable from 'react-bootstrap-table-next';
 import Navbar from 'react-bootstrap/Navbar';
 import ButtonGroup from 'react-bootstrap/ButtonGroup';
 import Button from 'react-bootstrap/Button';
 import Modal from 'react-bootstrap/Modal';
-import filterFactory from 'react-bootstrap-table2-filter';
-import cellEditFactory from 'react-bootstrap-table2-editor';
 import VeloTimestamp from "../utils/time.jsx";
+import CreatableSelect from 'react-select/creatable';
+import Form from 'react-bootstrap/Form';
+import ToolTip from '../widgets/tooltip.jsx';
+import Row from 'react-bootstrap/Row';
+import Col from 'react-bootstrap/Col';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { withRouter } from "react-router-dom";
-import { formatColumns } from "../core/table.jsx";
 
 import VeloForm from '../forms/form.jsx';
-import VeloPagedTable from '../core/paged-table.jsx';
+import VeloPagedTable, { TablePaginationControl } from '../core/paged-table.jsx';
 
 import NewHuntWizard from './new-hunt.jsx';
 import DeleteNotebookDialog from '../notebooks/notebook-delete.jsx';
@@ -51,11 +52,22 @@ class ModifyHuntDialog extends React.Component {
 
     state = {
         description: "",
-        expires: ""
+        expires: "",
+        tags: [],
+    }
+
+    getTags = ()=>{
+        api.get("v1/GetHuntTags", {}, this.source.token).then(response=>{
+                if (response && response.data &&
+                    response.data.tags && response.data.tags.length) {
+                    this.setState({tags: response.data.tags});
+                };
+        });
     }
 
     componentDidMount = () => {
         this.source = CancelToken.source();
+        this.getTags();
     }
 
     componentWillUnmount() {
@@ -75,11 +87,13 @@ class ModifyHuntDialog extends React.Component {
             this.props.hunt.hunt_id;
 
         let description = this.state.description || this.props.hunt.hunt_description;
+        let tags = this.state.tags || this.props.hunt.tags || [];
 
         if (!hunt_id) { return; };
 
         api.post("v1/ModifyHunt", {
             hunt_description: description,
+            tags: tags,
             expires: this.getExpiryEpoch() * 1000000,
             hunt_id: hunt_id,
         }, this.source.token).then((response) => {
@@ -92,6 +106,13 @@ class ModifyHuntDialog extends React.Component {
         let expires = this.getExpiryEpoch();
         let now = Date.now() / 1000;
 
+        let options = _.map(this.state.tags, x=>{
+            return {value: x, label: x, isFixed: true, color: "#00B8D9"};
+        });
+
+        let tag_defaults = _.map(this.props.hunt.tags,
+                             x=>{return {value: x, label: x};});
+
         return <Modal show={true}
                       onHide={this.props.onCancel} >
                  <Modal.Header closeButton>
@@ -99,6 +120,30 @@ class ModifyHuntDialog extends React.Component {
                  </Modal.Header>
 
                  <Modal.Body>
+                   <Form.Group as={Row}>
+                     <Form.Label column sm="3">
+                       <ToolTip tooltip={T("Set Tags")}>
+                         <div>
+                           {T("Tags")}
+                         </div>
+                       </ToolTip>
+                     </Form.Label>
+                     <Col sm="8">
+                       <CreatableSelect
+                         isMulti
+                         isClearable
+                         className="labels"
+                         classNamePrefix="velo"
+                         options={options}
+                         onChange={(e)=>{
+                             this.setState({tags: _.map(e, x=>x.value)});
+                         }}
+                         placeholder={T("Hunt Tags")}
+                         spellCheck="false"
+                         defaultValue={tag_defaults}
+                       />
+                     </Col>
+                   </Form.Group>
                    <VeloForm
                      param={{name: T("Description"), description: T("Hunt description")}}
                      value={description}
@@ -378,222 +423,220 @@ class HuntList extends React.Component {
         let tab = this.props.match && this.props.match.params && this.props.match.params.tab;
         return (
             <>
-                {this.state.showWizard &&
-                    <NewHuntWizard
-                        onCancel={(e) => this.setState({ showWizard: false })}
-                        onResolve={this.setCollectionRequest}
-                    />
-                }
-                {this.state.showCopyWizard &&
-                    <NewHuntWizard
-                        baseHunt={this.state.full_selected_hunt}
-                        onCancel={(e) => this.setState({ showCopyWizard: false })}
-                        onResolve={this.setCollectionRequest}
-                    />
-                }
-                { this.state.showModifyHuntDialog &&
-                     <ModifyHuntDialog
-                       onResolve={()=>{
-                           this.incrementVersion();
-                           this.setState({showModifyHuntDialog: false});
-                       }}
-                       onCancel={()=>this.setState({showModifyHuntDialog: false})}
-                       hunt={this.props.selected_hunt}/>
-                }
-                {this.state.showRunHuntDialog &&
-                    <Modal show={this.state.showRunHuntDialog}
-                        onHide={() => this.setState({ showRunHuntDialog: false })} >
-                        <Modal.Header closeButton>
-                            <Modal.Title>{T("Run this hunt?")}</Modal.Title>
-                        </Modal.Header>
+              {this.state.showWizard &&
+               <NewHuntWizard
+                 onCancel={(e) => this.setState({ showWizard: false })}
+                 onResolve={this.setCollectionRequest}
+               />
+              }
+              {this.state.showCopyWizard &&
+               <NewHuntWizard
+                 baseHunt={this.state.full_selected_hunt}
+                 onCancel={(e) => this.setState({ showCopyWizard: false })}
+                 onResolve={this.setCollectionRequest}
+               />
+              }
+              { this.state.showModifyHuntDialog &&
+                <ModifyHuntDialog
+                  onResolve={()=>{
+                      this.incrementVersion();
+                      this.setState({showModifyHuntDialog: false});
+                  }}
+                  onCancel={()=>this.setState({showModifyHuntDialog: false})}
+                  hunt={this.props.selected_hunt}/>
+              }
+              {this.state.showRunHuntDialog &&
+               <Modal show={this.state.showRunHuntDialog}
+                      onHide={() => this.setState({ showRunHuntDialog: false })} >
+                 <Modal.Header closeButton>
+                   <Modal.Title>{T("Run this hunt?")}</Modal.Title>
+                 </Modal.Header>
 
-                        <Modal.Body>
-                            <p>{T("Are you sure you want to run this hunt?")}</p>
-                        </Modal.Body>
+                 <Modal.Body>
+                   <p>{T("Are you sure you want to run this hunt?")}</p>
+                 </Modal.Body>
 
-                        <Modal.Footer>
-                            <Button variant="secondary"
-                                onClick={() => this.setState({ showRunHuntDialog: false })}>
-                                {T("Close")}
-                            </Button>
-                            <Button variant="primary"
-                                onClick={this.startHunt}>
-                                {T("Run it!")}
-                            </Button>
-                        </Modal.Footer>
-                    </Modal>
-                }
-                {this.state.showDeleteNotebook &&
-                    <DeleteNotebookDialog
-                        notebook_id={"N." + selected_hunt}
-                        onClose={e => {
-                            this.setState({ showDeleteNotebook: false });
-                            this.incrementVersion();
-                        }} />
-                }
+                 <Modal.Footer>
+                   <Button variant="secondary"
+                           onClick={() => this.setState({ showRunHuntDialog: false })}>
+                     {T("Close")}
+                   </Button>
+                   <Button variant="primary"
+                           onClick={this.startHunt}>
+                     {T("Run it!")}
+                   </Button>
+                 </Modal.Footer>
+               </Modal>
+              }
+              {this.state.showDeleteNotebook &&
+               <DeleteNotebookDialog
+                 notebook_id={"N." + selected_hunt}
+                 onClose={e => {
+                     this.setState({ showDeleteNotebook: false });
+                     this.incrementVersion();
+                 }} />
+              }
 
-                {this.state.showExportNotebook &&
-                    <ExportNotebook
-                        notebook={{ notebook_id: "N." + selected_hunt }}
-                        onClose={(e) => this.setState({ showExportNotebook: false })} />
-                }
+              {this.state.showExportNotebook &&
+               <ExportNotebook
+                 notebook={{ notebook_id: "N." + selected_hunt }}
+                 onClose={(e) => this.setState({ showExportNotebook: false })} />
+              }
 
-                {this.state.showDeleteHuntDialog &&
-                    <Modal show={true}
-                        onHide={() => this.setState({ showDeleteHuntDialog: false })} >
-                        <Modal.Header closeButton>
-                            <Modal.Title>{T("Permanently delete this hunt?")}</Modal.Title>
-                        </Modal.Header>
+              {this.state.showDeleteHuntDialog &&
+               <Modal show={true}
+                      onHide={() => this.setState({ showDeleteHuntDialog: false })} >
+                 <Modal.Header closeButton>
+                   <Modal.Title>{T("Permanently delete this hunt?")}</Modal.Title>
+                 </Modal.Header>
 
-                        <Modal.Body>
-                            {T("DeleteHuntDialog")}
-                        </Modal.Body>
+                 <Modal.Body>
+                   {T("DeleteHuntDialog")}
+                 </Modal.Body>
 
-                        <Modal.Footer>
-                            <Button variant="secondary"
-                                onClick={() => this.setState({ showDeleteHuntDialog: false })}>
-                                {T("Close")}
-                            </Button>
-                            <Button variant="primary"
-                                onClick={this.deleteHunt}>
-                                {T("Kill it!")}
-                            </Button>
-                        </Modal.Footer>
-                    </Modal>
-                }
+                 <Modal.Footer>
+                   <Button variant="secondary"
+                           onClick={() => this.setState({ showDeleteHuntDialog: false })}>
+                     {T("Close")}
+                   </Button>
+                   <Button variant="primary"
+                           onClick={this.deleteHunt}>
+                     {T("Kill it!")}
+                   </Button>
+                 </Modal.Footer>
+               </Modal>
+              }
 
-                <Navbar className="hunt-toolbar">
-                    <ButtonGroup>
-                        <Button data-tooltip={T("New Hunt")}
-                            data-position="right"
-                            className="btn-tooltip"
-                            onClick={() => this.setState({ showWizard: true })}
-                            variant="default">
-                            <FontAwesomeIcon icon="plus" />
-                            <span className="sr-only">{T("New Hunt")}</span>
-                        </Button>
-                        <Button data-tooltip={T("Modify Hunt")}
-                            data-position="right"
-                            className="btn-tooltip"
-                            disabled={!selected_hunt}
+              <Navbar className="hunt-toolbar">
+                <ButtonGroup>
+                  <ToolTip tooltip={T("New Hunt")}>
+                    <Button
+                      onClick={() => this.setState({ showWizard: true })}
+                      variant="default">
+                      <FontAwesomeIcon icon="plus" />
+                      <span className="sr-only">{T("New Hunt")}</span>
+                    </Button>
+                  </ToolTip>
+                  <ToolTip tooltip={T("Modify Hunt")}>
+                    <Button disabled={!selected_hunt}
                             onClick={() => this.setState({ showModifyHuntDialog: true })}
                             variant="default">
-                            <FontAwesomeIcon icon="wrench" />
-                            <span className="sr-only">{T("Modify Hunt")}</span>
-                        </Button>
-                        <Button data-tooltip={T("Run Hunt")}
-                            data-position="right"
-                            className="btn-tooltip"
-                            disabled={state !== 'PAUSED' && state !== 'STOPPED'}
+                      <FontAwesomeIcon icon="wrench" />
+                      <span className="sr-only">{T("Modify Hunt")}</span>
+                    </Button>
+                  </ToolTip>
+                  <ToolTip tooltip={T("Run Hunt")}>
+                    <Button disabled={state !== 'PAUSED' && state !== 'STOPPED'}
                             onClick={() => this.setState({ showRunHuntDialog: true })}
                             variant="default">
-                            <FontAwesomeIcon icon="play" />
-                            <span className="sr-only">{T("Run Hunt")}</span>
-                        </Button>
-                        <Button data-tooltip={T("Stop Hunt")}
-                            data-position="right"
-                            className="btn-tooltip"
-                            disabled={state !== 'RUNNING'}
+                      <FontAwesomeIcon icon="play" />
+                      <span className="sr-only">{T("Run Hunt")}</span>
+                    </Button>
+                  </ToolTip>
+                  <ToolTip tooltip={T("Stop Hunt")}>
+                    <Button disabled={state !== 'RUNNING'}
                             onClick={this.stopHunt}
                             variant="default">
-                            <FontAwesomeIcon icon="stop" />
-                            <span className="sr-only">{T("Stop Hunt")}</span>
-                        </Button>
-                        <Button data-tooltip={T("Delete Hunt")}
-                            data-position="right"
-                            className="btn-tooltip"
-                            disabled={state === 'RUNNING' || !selected_hunt}
+                      <FontAwesomeIcon icon="stop" />
+                      <span className="sr-only">{T("Stop Hunt")}</span>
+                    </Button>
+                  </ToolTip>
+                  <ToolTip tooltip={T("Delete Hunt")}>
+                    <Button disabled={state === 'RUNNING' || !selected_hunt}
                             onClick={() => this.setState({ showDeleteHuntDialog: true })}
                             variant="default">
-                            <FontAwesomeIcon icon="trash-alt" />
-                            <span className="sr-only">{T("Delete Hunt")}</span>
-                        </Button>
-                        <Button data-tooltip={T("Copy Hunt")}
-                            data-position="right"
-                            className="btn-tooltip"
-                            disabled={!selected_hunt}
+                      <FontAwesomeIcon icon="trash-alt" />
+                      <span className="sr-only">{T("Delete Hunt")}</span>
+                    </Button>
+                  </ToolTip>
+                  <ToolTip tooltip={T("Copy Hunt")}>
+                    <Button disabled={!selected_hunt}
                             onClick={this.copyHunt}
                             variant="default">
-                            <FontAwesomeIcon icon="copy" />
-                          <span className="sr-only">{T("Copy Hunt")}</span>
-                        </Button>
-                        <Button data-tooltip={T("Stats Toggle")}
-                                data-position="left"
-                                className="btn-tooltip"
-                                variant="default"
-                                onClick={this.expandSlider}>
-                          <FontAwesomeIcon
-                            icon={SLIDE_STATES[this.state.slider].icon}/>
-                        </Button>
+                      <FontAwesomeIcon icon="copy" />
+                      <span className="sr-only">{T("Copy Hunt")}</span>
+                    </Button>
+                  </ToolTip>
+                  <ToolTip tooltip={T("Stats Toggle")}>
+                    <Button variant="default"
+                            onClick={this.expandSlider}>
+                      <FontAwesomeIcon
+                        icon={SLIDE_STATES[this.state.slider].icon}/>
+                    </Button>
+                  </ToolTip>
 
-                      { !this.state.filter ?
-                        <Button data-tooltip={T("Show only my hunts")}
-                                data-position="right"
-                                className="btn-tooltip"
-                                onClick={()=>{
-                                    this.setState({transform: {editing: "", filter_column: "Creator", filter_regex: username},
-                                                   filter: username});
-                                    this.incrementVersion();
-                                }}
-                                variant="default">
-                          <FontAwesomeIcon icon="user" />
-                          <span className="sr-only">{T("Show only my hunts")}</span>
-                        </Button>
-                        :
-                        <Button data-tooltip={T("Show all hunts")}
-                                data-position="right"
-                                className="btn-tooltip"
-                                onClick={()=>{
-                                    this.setState({transform: {}, filter: ""});
-                                    this.incrementVersion();
-                                }}
-                                variant="default">
-                          <FontAwesomeIcon icon="user-large-slash" />
-                          <span className="sr-only">{T("Show all hunts")}</span>
-                        </Button>
-                      }
-                    </ButtonGroup>
-                    {tab === "notebook" &&
-                        <ButtonGroup className="float-right">
-                            <Button data-tooltip={T("Notebooks")}
-                                data-position="right"
-                                className="btn-tooltip"
-                                disabled={true}
-                                variant="outline-dark">
-                                <FontAwesomeIcon icon="book" />
-                                <span className="sr-only">{T("Notebooks")}</span>
-                            </Button>
+                  { !this.state.filter ?
+                    <ToolTip tooltip={T("Show only my hunts")}>
+                      <Button onClick={()=>{
+                                  this.setState({transform: {editing: "", filter_column: "Creator", filter_regex: username},
+                                                 filter: username});
+                                  this.incrementVersion();
+                              }}
+                              variant="default">
+                        <FontAwesomeIcon icon="user" />
+                        <span className="sr-only">{T("Show only my hunts")}</span>
+                      </Button>
+                    </ToolTip>
+                    :
+                    <ToolTip tooltip={T("Show all hunts")}>
+                      <Button onClick={()=>{
+                                  this.setState({transform: {}, filter: ""});
+                                  this.incrementVersion();
+                              }}
+                              variant="default">
+                        <FontAwesomeIcon icon="user-large-slash" />
+                        <span className="sr-only">{T("Show all hunts")}</span>
+                      </Button>
+                    </ToolTip>
+                  }
+                </ButtonGroup>
 
-                            <Button data-tooltip={T("Full Screen")}
-                                data-position="left"
-                                className="btn-tooltip"
-                                onClick={this.setFullScreen}
-                                variant="default">
-                                <FontAwesomeIcon icon="expand" />
-                                <span className="sr-only">{T("Full Screen")}</span>
-                            </Button>
+                { this.state.page_state &&
+                  <ButtonGroup>
+                    <TablePaginationControl
+                      total_size={this.state.page_state.total_size}
+                      start_row={this.state.page_state.start_row}
+                      page_size={this.state.page_state.page_size}
+                      current_page={this.state.page_state.start_row /
+                                    this.state.page_state.page_size}
+                      onRowChange={this.state.page_state.onRowChange}
+                      onPageSizeChange={this.state.page_state.onPageSizeChange}
+                    />
+                  </ButtonGroup> }
 
-                            <Button data-tooltip={T("Delete Notebook")}
-                                data-position="left"
-                                className="btn-tooltip"
-                                onClick={() => this.setState({ showDeleteNotebook: true })}
-                                variant="default">
-                                <FontAwesomeIcon icon="trash" />
-                                <span className="sr-only">{T("Delete Notebook")}</span>
-                            </Button>
-
-                            <Button data-tooltip={T("Export Notebook")}
-                                data-position="left"
-                                className="btn-tooltip"
-
-                                onClick={() => this.setState({ showExportNotebook: true })}
-                                variant="default">
-                                <FontAwesomeIcon icon="download" />
-                                <span className="sr-only">{T("Export Notebook")}</span>
-                            </Button>
-                        </ButtonGroup>
-                    }
-                </Navbar>
+                {tab === "notebook" &&
+                 <ButtonGroup className="float-right">
+                   <ToolTip tooltip={T("Notebooks")}>
+                     <Button disabled={true}
+                             variant="outline-dark">
+                       <FontAwesomeIcon icon="book" />
+                       <span className="sr-only">{T("Notebooks")}</span>
+                     </Button>
+                   </ToolTip>
+                   <ToolTip tooltip={T("Full Screen")}>
+                     <Button onClick={this.setFullScreen}
+                             variant="default">
+                       <FontAwesomeIcon icon="expand" />
+                       <span className="sr-only">{T("Full Screen")}</span>
+                     </Button>
+                   </ToolTip>
+                   <ToolTip tooltip={T("Delete Notebook")} >
+                     <Button onClick={() => this.setState({ showDeleteNotebook: true })}
+                             variant="default">
+                       <FontAwesomeIcon icon="trash" />
+                       <span className="sr-only">{T("Delete Notebook")}</span>
+                     </Button>
+                   </ToolTip>
+                   <ToolTip tooltip={T("Export Notebook")}  >
+                     <Button onClick={() => this.setState({ showExportNotebook: true })}
+                             variant="default">
+                       <FontAwesomeIcon icon="download" />
+                       <span className="sr-only">{T("Export Notebook")}</span>
+                     </Button>
+                   </ToolTip>
+                 </ButtonGroup>
+                }
+              </Navbar>
 
                 <div className="fill-parent no-margins toolbar-margin selectable">
                   <VeloPagedTable
@@ -607,11 +650,13 @@ class HuntList extends React.Component {
                     version={{version: this.state.version}}
                     no_spinner={true}
                     transform={this.state.transform}
-                    renderers={huntRowRenderer}
+                    renderers={huntRowRenderer(this)}
                     setTransform={x=>{
                         this.setState({transform: x, filter: ""});
                     }}
                     no_toolbar={true}
+                    name="HuntList"
+                    setPageState={x=>this.setState({page_state: x})}
                   />
                 </div>
             </>
@@ -640,18 +685,37 @@ const stateRenderer = (cell, row) => {
     return <div className="flow-status-icon">{result}</div>;
 };
 
-const huntRowRenderer = {
-    State: stateRenderer,
-    Created:  (cell, row) => {
-        return <VeloTimestamp usec={cell}/>;
-    },
-    Started:  (cell, row) => {
-        if (cell === 0) {
-            return <></>;
-        }
-        return <VeloTimestamp usec={cell}/>;
-    },
-    Expires:  (cell, row) => {
-        return <VeloTimestamp usec={cell}/>;
-    },
+const huntRowRenderer = self=>{
+    return {
+        State: stateRenderer,
+        Created:  (cell, row) => {
+            return <VeloTimestamp usec={cell}/>;
+        },
+        HuntId: (cell, row) => {
+            return <div className="no-break">{cell}</div>;
+        },
+        Started:  (cell, row) => {
+            if (cell === 0) {
+                return <></>;
+            }
+            return <VeloTimestamp usec={cell}/>;
+        },
+        Expires:  (cell, row) => {
+            return <VeloTimestamp usec={cell}/>;
+        },
+        Tags: (cell, row)=>{
+            return _.map(cell, tag=>{
+                return <Button variant="outline-info" key={tag}
+                               onClick={x=>self.setState({
+                                   transform: {
+                                       editing: "",
+                                       filter_column: "Tags",
+                                       filter_regex: tag
+                                   },
+                               })}>
+                         {tag}
+                       </Button>;
+            });
+        },
+    };
 };

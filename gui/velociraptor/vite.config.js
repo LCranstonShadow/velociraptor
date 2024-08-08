@@ -1,16 +1,28 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import viteCompression from 'vite-plugin-compression';
+import eslint from 'vite-plugin-eslint';
 
 export default defineConfig({
     root: 'src',
     base: '/app',
     build: {
-      // Relative to the root
-      outDir: '../build',
-      emptyOutDir: true,
-      copyPublicDir: true,
-      sourcemap: false,
+        // Relative to the root
+        outDir: '../build',
+        emptyOutDir: true,
+        copyPublicDir: true,
+        // We dont really care about this.
+        chunkSizeWarningLimit: 10000000,
+        sourcemap: false,
+        rollupOptions: {
+            onwarn(warning, warn) {
+                // Pointless warning we cant do anything about.
+                if (warning.code === "MODULE_LEVEL_DIRECTIVE") {
+                    return;
+                }
+                warn(warning);
+            },
+        },
     },
     define: {
         'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
@@ -38,12 +50,21 @@ export default defineConfig({
               if (/html$/.test(x)) {
                   return false;
               }
+
+              // We implement brotli compression in the Go server
+              // because this needs to be mutated - so we build it uncompressed
+              // in the bundle.
+              if (/css$/.test(x)) {
+                  return false;
+              }
               return true;
           },
           verbose: true,
           algorithm: 'brotliCompress',
           deleteOriginFile: true,
       }),
+        // This adds significant time to build. Only enable sometimes.
+        // eslint(),
     ],
     server: {
       port: 3000,

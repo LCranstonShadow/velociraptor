@@ -216,6 +216,9 @@ type matchPlan struct {
 	hidden bool
 
 	builtin *bool
+
+	// Show basic artifacts
+	basic *bool
 }
 
 func (self *matchPlan) matchDescOrName(artifact *artifacts_proto.Artifact) bool {
@@ -288,6 +291,18 @@ func (self *matchPlan) matchBuiltin(artifact *artifacts_proto.Artifact) bool {
 	return !artifact.BuiltIn
 }
 
+func (self *matchPlan) matchMetadata(artifact *artifacts_proto.Artifact) bool {
+	if self.basic == nil {
+		return true
+	}
+
+	if *self.basic && artifact.Metadata != nil &&
+		artifact.Metadata.Basic {
+		return true
+	}
+	return false
+}
+
 func (self *matchPlan) matchType(artifact *artifacts_proto.Artifact) bool {
 	if len(self.types) > 0 {
 		for _, t := range self.types {
@@ -322,6 +337,10 @@ func (self *matchPlan) matchArtifact(artifact *artifacts_proto.Artifact) bool {
 	}
 
 	if !self.matchBuiltin(artifact) {
+		return false
+	}
+
+	if !self.matchMetadata(artifact) {
 		return false
 	}
 
@@ -379,7 +398,15 @@ func prepareMatchPlan(search string) *matchPlan {
 				}
 				result.builtin = &value
 				continue
+
+			case "metadata":
+				if term == "basic" {
+					value := true
+					result.basic = &value
+				}
+				continue
 			}
+
 		}
 		re, err := regexp.Compile("(?i)" + token)
 		if err == nil {
@@ -450,6 +477,16 @@ func searchArtifact(
 				}
 				if fields.Type {
 					new_item.Type = artifact.Type
+				}
+
+				if fields.Sources {
+					for _, s := range artifact.Sources {
+						new_item.Sources = append(new_item.Sources,
+							&artifacts_proto.ArtifactSource{
+								Name:        s.Name,
+								Description: s.Description,
+							})
+					}
 				}
 
 				result.Items = append(result.Items, new_item)

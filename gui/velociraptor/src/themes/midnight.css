@@ -69,6 +69,8 @@
   --color-scrollbar-track: var(--color-canvas-background);
   --color-scrollbar-thumb: var(--color-accent-50);
   --color-scrollbar-thumb-hover: var(--color-accent-100);
+  --color-scrollbar-main: var(--color-accent-25);
+  --color-scrollbar-background: rgba(var(--color-accent), 0.1);
 
   --color-btn-border: #850000;
   --color-btn-default-border: #850000;
@@ -199,18 +201,6 @@ body.midnight {
 
 .midnight .hamburger {
   color: var(--color-sidebar-foreground);
-}
-
-.midnight #client-search-bar {
-  background: var(--color-canvas-background);
-  border: 1px solid var(--color-btn-default-border);
-  border-radius: 0;
-  color: var(--color-foreground);
-  font-family: var(--font-family-sans-serif);
-  padding-top: 5px;
-  padding-bottom: 5px;
-  margin-left: 5px;
-  height: 26px;
 }
 
 .midnight .dropdown .dropdown-toggle.btn.btn-default {
@@ -1309,19 +1299,6 @@ body.midnight {
 .midnight .icon-small {
   vertical-align: middle;
   opacity: 0.8;
-}
-
-/* Disable 'filters' while checked since they impact 'accent-color'. */
-.midnight input[type='checkbox']:checked {
-  filter: none;
-  box-shadow: none;
-}
-
-.midnight input[type='checkbox'] {
-  transform: scale(1.2);
-  accent-color: var(--accent-color);
-  filter: brightness(0%) saturate(100%) invert(16%) sepia(93%) saturate(5000%) hue-rotate(356deg) brightness(99%) contrast(122%);
-  box-shadow: none;
 }
 
 .midnight .no-content {

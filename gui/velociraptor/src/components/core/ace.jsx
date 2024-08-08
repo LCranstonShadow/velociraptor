@@ -91,6 +91,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
 import UserConfig from './user.jsx';
 
+import ToolTip from '../widgets/tooltip.jsx';
+
 import api from '../core/api-service.jsx';
 import {CancelToken} from 'axios';
 import { JSONparse } from '../utils/json_parse.jsx';
@@ -102,22 +104,24 @@ export class SettingsButton extends Component {
 
     render() {
         return (
-            <>
+            <ToolTip tooltip={T("Configure Editor")}>
               <Button variant="default"
-                      className="float-left btn-tooltip"
-                      data-tooltip={T("Configure Editor")}
-                      data-position="right"
-
+                      className="float-left"
                       onClick={() => this.props.ace.execCommand("showSettingsMenu")} >
                 <FontAwesomeIcon icon="text-height"/>
         <span className="sr-only">{T("Configure Editor")}</span>
               </Button>
-            </>
+            </ToolTip>
         );
     }
 }
 
 export default class VeloAce extends Component {
+    constructor() {
+        super();
+        this.aceRef= React.createRef();
+    }
+
     static contextType = UserConfig;
     static propTypes = {
         text: PropTypes.string,
@@ -201,19 +205,21 @@ export default class VeloAce extends Component {
     }
 
     componentDidUpdate() {
-        if (this.props.mode !== this.state.mode) {
+        let ref = this.aceRef.current;
+
+        if (ref && this.props.mode !== this.state.mode) {
             this.setState({mode: this.props.mode});
 
             if (this.props.mode === "vql") {
-                this.refs.ace.editor.getSession().setMode(new VqlMode());
+                ref.editor.getSession().setMode(new VqlMode());
             } else if(this.props.mode === "markdown") {
-                this.refs.ace.editor.getSession().setMode(new MarkdownMode());
+                ref.editor.getSession().setMode(new MarkdownMode());
             } else if(this.props.mode === "yaml") {
-                this.refs.ace.editor.getSession().setMode(new YamlMode());
+                ref.editor.getSession().setMode(new YamlMode());
             } else if(this.props.mode === "regex") {
-                this.refs.ace.editor.getSession().setMode(new RegexMode());
+                ref.editor.getSession().setMode(new RegexMode());
             } else if(this.props.mode === "yara") {
-                this.refs.ace.editor.getSession().setMode(new YaraMode());
+                ref.editor.getSession().setMode(new YaraMode());
             }
         }
     }
@@ -236,7 +242,7 @@ export default class VeloAce extends Component {
                   "velo-ace-editor",
                   this.props.className)}>
                 <AceEditor
-                  ref="ace"
+                  ref={this.aceRef}
                   className="full-height"
                   showGutter={true}
                   focus={focus}

@@ -131,7 +131,8 @@ func (self *ApiServer) GetHuntTable(
 	result := &api_proto.GetTableResponse{
 		TotalRows: total,
 		Columns: []string{
-			"State", "HuntId", "Description", "Created",
+			"State", "Tags", "HuntId",
+			"Description", "Created",
 			"Started", "Expires", "Scheduled", "Creator",
 		}}
 
@@ -143,6 +144,7 @@ func (self *ApiServer) GetHuntTable(
 
 		row_data := []string{
 			fmt.Sprintf("%v", hunt.State),
+			json.AnyToString(hunt.Tags, vjson.DefaultEncOpts()),
 			hunt.HuntId,
 			hunt.HuntDescription,
 			json.AnyToString(hunt.CreateTime, vjson.DefaultEncOpts()),
@@ -424,6 +426,35 @@ func (self *ApiServer) GetHunt(
 	}
 
 	return result, nil
+}
+
+func (self *ApiServer) GetHuntTags(
+	ctx context.Context,
+	in *emptypb.Empty) (*api_proto.HuntTags, error) {
+	defer Instrument("GetHuntTags")()
+
+	users := services.GetUserManager()
+	user_record, org_config_obj, err := users.GetUserFromContext(ctx)
+	if err != nil {
+		return nil, Status(self.verbose, err)
+	}
+	principal := user_record.Name
+
+	permissions := acls.READ_RESULTS
+	perm, err := services.CheckAccess(org_config_obj, principal, permissions)
+	if !perm || err != nil {
+		return nil, PermissionDenied(err,
+			"User is not allowed to view hunts.")
+	}
+
+	hunt_dispatcher, err := services.GetHuntDispatcher(org_config_obj)
+	if err != nil {
+		return nil, Status(self.verbose, err)
+	}
+
+	return &api_proto.HuntTags{
+		Tags: hunt_dispatcher.GetTags(ctx),
+	}, nil
 }
 
 func (self *ApiServer) GetHuntResults(

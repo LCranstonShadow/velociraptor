@@ -6,7 +6,6 @@ import PropTypes from 'prop-types';
 import T from '../i8n/i8n.jsx';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
-import Button from 'react-bootstrap/Button';
 import parseHTML from '../core/sanitize.jsx';
 
 import VeloTable from '../core/table.jsx';
@@ -109,6 +108,7 @@ export default class NotebookReportRenderer extends React.Component {
             return result;
         }
 
+        let cell_id = this.props.cell && this.props.cell.cell_id;
         let template = parseHTML(this.props.cell.output, {
             replace: (domNode) => {
                 // A table which contains the data inline.
@@ -170,6 +170,7 @@ export default class NotebookReportRenderer extends React.Component {
                               refresh={this.props.refresh}
                               params={parse_param(domNode)}
                               completion_reporter={this.props.completion_reporter}
+                              name={cell_id}
                             />
                         );
                     } catch(e) {

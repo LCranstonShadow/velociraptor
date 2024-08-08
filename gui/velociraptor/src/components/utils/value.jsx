@@ -81,12 +81,13 @@ export default class VeloValueRenderer extends React.Component {
 
         let button = "";
         if (this.estimateJsonSize(v) > maxSizeDialog) {
-            button = <a onClick={x=>this.setState({showDialog:true})}>
+            button = <button className="link"
+                       onClick={x=>this.setState({showDialog:true})}>
                        <FontAwesomeIcon icon="plus"/>
-                     </a>;
+                     </button>;
         }
 
-        return <>
+        return <ContextMenu value={this.props.value}>
                  <div>{ button }
                  </div>
                  <JsonView value={v} indent={0}/>
@@ -94,6 +95,6 @@ export default class VeloValueRenderer extends React.Component {
                    <ValueModal
                      onClose={x=>this.setState({showDialog:false})}
                      value={this.props.value}/> }
-               </>;
+               </ContextMenu>;
     }
 }

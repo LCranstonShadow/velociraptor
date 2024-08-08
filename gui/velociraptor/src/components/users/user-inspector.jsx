@@ -4,8 +4,7 @@ import "./user.css";
 
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
-import Tabs from 'react-bootstrap/Tabs';
-import Tab from 'react-bootstrap/Tab';
+import Nav from 'react-bootstrap/Nav';
 import T from '../i8n/i8n.jsx';
 import { withRouter }  from "react-router-dom";
 import UserConfig from '../core/user.jsx';
@@ -24,6 +23,7 @@ import EditUserDialog from './edit-user.jsx';
 
 import api from '../core/api-service.jsx';
 import {CancelToken} from 'axios';
+import ToolTip from '../widgets/tooltip.jsx';
 
 const POLL_TIME = 5000;
 
@@ -381,42 +381,42 @@ class UsersOverview extends Component {
 
               <Col sm="4">
                   <Container className="selectable user-list">
-                    <Table  bordered hover size="sm">
+                    <Table size="sm">
                       <thead>
                         <tr>
                           <th>
                             {T("Users")}
                             { !this.context.traits.password_less &&
+                              <ToolTip tooltip={T("Update User Password")}>
+                                <Button
+                                  disabled={!this.state.user_name}
+                                  onClick={()=>this.setState({
+                                      showEditUserDialog: true
+                                  })}
+                                  className="new-user-btn"
+                                  variant="outline-default"
+                                  as="button">
+                                  <FontAwesomeIcon icon="edit"/>
+                                  <span className="sr-only">
+                                    {T("Update User Password")}
+                                  </span>
+                                </Button>
+                              </ToolTip>
+                            }
+                            <ToolTip tooltip={T("Add a new user")}>
                               <Button
-                                disabled={!this.state.user_name}
-                                data-tooltip={T("Update User Password")}
-                                data-position="left"
                                 onClick={()=>this.setState({
-                                    showEditUserDialog: true
+                                    showAddUserDialog: true
                                 })}
-                                className="btn-tooltip new-user-btn"
+                                className="new-user-btn"
                                 variant="outline-default"
                                 as="button">
-                                <FontAwesomeIcon icon="edit"/>
+                                <FontAwesomeIcon icon="plus"/>
                                 <span className="sr-only">
-                                  {T("Update User Password")}
+                                  {T("Add a new user")}
                                 </span>
                               </Button>
-                            }
-                            <Button
-                              data-tooltip={T("Add a new user")}
-                              data-position="left"
-                              onClick={()=>this.setState({
-                                  showAddUserDialog: true
-                              })}
-                              className="btn-tooltip new-user-btn"
-                              variant="outline-default"
-                              as="button">
-                              <FontAwesomeIcon icon="plus"/>
-                              <span className="sr-only">
-                                {T("Add a new user")}
-                              </span>
-                            </Button>
+                            </ToolTip>
                           </th>
                         </tr>
                       </thead>
@@ -440,32 +440,32 @@ class UsersOverview extends Component {
               </Col>
               <Col sm="4">
                   <Container className="selectable org-list">
-                    <Table  bordered hover size="sm">
+                    <Table size="sm">
                       <thead>
                         <tr>
                           <th>
                             {T("Orgs")}
-                            <Button
-                              disabled={!this.state.user_name}
-                              data-tooltip={T("Assign user to Orgs")}
-                              data-position="left"
-                              onClick={()=>this.setState({
-                                  showAddOrgDialog: true
-                              })}
-                              className="new-user-btn btn-tooltip"
-                              variant="outline-default"
-                              as="button">
-                              <FontAwesomeIcon icon="plus"/>
-                              <span className="sr-only">
-                                {T("Assign user to Orgs")}
-                              </span>
-                            </Button>
+                            <ToolTip tooltip={T("Assign user to Orgs")}>
+                              <Button
+                                disabled={!this.state.user_name}
+                                onClick={()=>this.setState({
+                                    showAddOrgDialog: true
+                                })}
+                                className="new-user-btn"
+                                variant="outline-default"
+                                as="button">
+                                <FontAwesomeIcon icon="plus"/>
+                                <span className="sr-only">
+                                  {T("Assign user to Orgs")}
+                                </span>
+                              </Button>
+                            </ToolTip>
                           </th></tr>
                       </thead>
                       <tbody>
-                        { _.isEmpty(selected_orgs) &&
-                          <tr className="no-content">
-                            <td>
+                      { _.isEmpty(selected_orgs) &&
+                        <tr className="no-content">
+                          <td>
                               <FontAwesomeIcon icon="angles-left"
                                                className="fa-fade"/>
                               {T("Please Select a User")}
@@ -527,7 +527,7 @@ class OrgsOverview extends UsersOverview {
             <Row>
                  <Col sm="4">
                    <Container className="selectable org-list">
-                    <Table  bordered hover size="sm">
+                    <Table size="sm">
                      <thead>
                        <tr><th>{T("Orgs")}</th></tr>
                        </thead>
@@ -558,7 +558,7 @@ class OrgsOverview extends UsersOverview {
                    </Col>
                  <Col sm="4">
             <Container className="selectable user-list">
-             <Table  bordered hover size="sm">
+             <Table size="sm">
                      <thead>
                        <tr><th>{T("Users")}</th></tr>
                      </thead>
@@ -651,21 +651,28 @@ class UserInspector extends Component {
         return (
             <div className="users-search-panel">
               <div className="padded">
-                <Tabs activeKey={this.state.tab}
-                      onSelect={this.setDefaultTab}>
-                  <Tab eventKey="users" title={T("Users")}>
-                    { this.state.tab === "users" &&
-                      <UsersOverview
-                        updateUsers={this.loadUsers}
-                        users={this.state.users} />}
-                  </Tab>
-                  <Tab eventKey="orgs" title={T("Orgs")}>
-                    { this.state.tab === "orgs" &&
-                      <OrgsOverview
-                        updateUsers={this.loadUsers}
-                        users={this.state.users} /> }
-                  </Tab>
-                </Tabs>
+                <Nav activeKey={this.state.tab} variant="tab"
+                     onSelect={this.setDefaultTab}>
+                  <Nav.Item>
+                    <Nav.Link as="button" className="btn btn-default"
+                              eventKey="users">{T("Users")}</Nav.Link>
+                  </Nav.Item>
+
+                  <Nav.Item>
+                    <Nav.Link as="button" className="btn btn-default"
+                              eventKey="orgs">{T("Orgs")}</Nav.Link>
+                  </Nav.Item>
+                </Nav>
+                <div className="card-deck">
+                  { this.state.tab === "users" &&
+                    <UsersOverview
+                      updateUsers={this.loadUsers}
+                      users={this.state.users} />}
+                  { this.state.tab === "orgs" &&
+                    <OrgsOverview
+                      updateUsers={this.loadUsers}
+                      users={this.state.users} /> }
+                </div>
               </div>
             </div>
         );

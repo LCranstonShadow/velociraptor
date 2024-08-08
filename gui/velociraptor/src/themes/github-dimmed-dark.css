@@ -99,10 +99,14 @@
   --color-scrollbar-track: var(--color-canvas-background);
   --color-scrollbar-thumb: var(--color-accent-25);
   --color-scrollbar-thumb-hover: var(--color-accent-75);
+  --color-scrollbar-main: var(--color-accent-25);
+  --color-scrollbar-background: rgba(var(--color-accent), 0.1);
 
   --color-tab: var(--color-canvas-background);
   --color-tab-active: var(--color-canvas-background);
   --color-tab-active-border: #ec775c;
+  --color-table-row-stripe: rgba(0, 0, 0, 0.1);
+  --color-table-row: var(--color-canvas-background);
   --color-table-heading-foreground: var(--color-foreground-dimmed);
   --color-table-heading-background: var(--color-card-heading-background);
   --color-client-link-hover: var(--color-btn-outline-link-hover);
@@ -168,17 +172,8 @@ body.github-dimmed-dark {
   color: var(--color-sidebar-foreground);
 }
 
-.github-dimmed-dark #client-search-bar {
-  background: var(--color-canvas-background);
-  border: 1px solid var(--color-btn-default-border);
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-  color: var(--color-foreground);
-  font-family: var(--font-family-sans-serif);
-  padding-top: 5px;
-  padding-bottom: 5px;
-  margin-left: 5px;
-  height: 26px;
+.github-dimmed-dark .nav-link {
+    border-radius: 0;
 }
 
 .github-dimmed-dark .dropdown .dropdown-toggle.btn.btn-default {
@@ -437,15 +432,11 @@ body.github-dimmed-dark {
 .github-dimmed-dark .table-bordered thead th {
   color: var(--color-foreground);
   font-weight: 700;
-  border: 1px solid var(--color-table-heading-background);
-  color: var(--color-foreground);
 }
 
 .github-dimmed-dark .table thead th {
   color: var(--color-foreground);
   font-weight: 700;
-  border: 1px solid var(--color-table-heading-background);
-  background: var(--color-table-heading-background);
   vertical-align: text-bottom;
 }
 
@@ -461,21 +452,6 @@ body.github-dimmed-dark {
 
 .github-dimmed-dark .table tbody tr td {
   border: none;
-}
-
-.github-dimmed-dark .table tbody tr:nth-of-type(2n) {
-  background: rgba(83, 155, 245, 0.1);
-  border: none;
-}
-
-.github-dimmed-dark .table tbody tr:nth-of-type(odd) {
-  background: rgba(83, 155, 245, 0.05);
-  border: none;
-}
-
-.github-dimmed-dark .table-hover tbody tr:hover {
-  background: var(--color-table-row-hover);
-  color: unset;
 }
 
 .github-dimmed-dark .new-artifact-search-table.selectable .table.table-bordered,
@@ -587,7 +563,8 @@ body.github-dimmed-dark {
   padding-block-start: 3px;
 }
 
-.github-dimmed-dark .nav-tabs {
+.github-dimmed-dark .nav-tabs,
+.github-dimmed-dark .nav-tabs .nav-item {
   border-bottom: none;
 }
 
@@ -1095,21 +1072,9 @@ body.github-dimmed-dark {
   opacity: 0.8;
 }
 
-/* Disable 'filters' while checked since they impact 'accent-color'. */
-.github-dimmed-dark input[type='checkbox']:checked {
-  filter: none;
-  box-shadow: none;
-}
-
-.github-dimmed-dark input[type='checkbox'] {
-  transform: scale(1.2);
-  accent-color: var(--color-foreground);
-  filter: brightness(0%) saturate(100%) invert(100%) sepia(52%) saturate(2024%) hue-rotate(175deg) brightness(103%) contrast(82%);
-  box-shadow: none;
-}
 
 .github-dimmed-dark .no-content {
-  color: var(--color-foreground-dimmed);
+    color: var(--color-foreground-dimmed);
 }
 
 .github-dimmed-dark .velo-ace-editor {

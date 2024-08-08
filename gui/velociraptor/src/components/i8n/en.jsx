@@ -172,7 +172,7 @@ const English = {
     "Deutsch": "German",
     "_ts": "ServerTime",
     "TablePagination": (from, to, size)=>
-    <>Showing { from } to { to } of { size }</>,
+    <>{ from.toString() }-{ to.toString() }/{ size.toString() }</>,
     "Verified Email" : "Verified Email",
     "Account Locked" : "Account Locked",
     "Role_administrator" : "Server Administrator",
@@ -290,6 +290,12 @@ const English = {
         <>
           You are about to remove user {user} from Org {org} <br/>
         </>),
+    "RUNNING": "Scheduled",
+    "WAITING": "Waiting to run",
+    "IN_PROGRESS": "In Progress",
+    "UNRESPONSIVE": "Unresponsive",
+    "FINISHED": "Completed",
+    "ERROR": "Error",
 };
 
 export default English;
